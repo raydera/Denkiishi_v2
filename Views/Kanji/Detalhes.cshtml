@@ -1,0 +1,370 @@
+﻿@model Denkiishi_v2.Models.KanjiDetalhesViewModel
+
+@{
+    ViewData["Title"] = "Detalhes do Kanji - " + Model.Caractere;
+}
+
+<div class="container mt-5">
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="text-primary border-bottom pb-2">
+                <i class="fa fa-language"></i> Detalhes do Kanji
+            </h2>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+
+            <div class="card shadow text-center mb-4">
+                <div class="card-body">
+                    <h1 class="display-1 fw-bold text-dark">@Model.Caractere</h1>
+
+                    <div class="d-flex align-items-center justify-content-center gap-2 mt-2">
+                        <p class="fs-4 text-muted mb-0">@Model.LeituraOnyomi</p>
+                        @if (!string.IsNullOrEmpty(Model.LeituraOnyomi))
+                        {
+                            <button onclick="falarJapones('@Model.LeituraOnyomi')"
+                                    class="btn btn-light text-secondary btn-sm rounded-circle border shadow-sm"
+                                    title="Ouvir Pronúncia"
+                                    style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fa fa-volume-up"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light fw-bold text-muted small">
+                    COMPONENTES (RADICAIS)
+                </div>
+                <div class="card-body">
+                    @if (Model.Radicais != null && Model.Radicais.Any())
+                    {
+                        <div class="d-flex flex-wrap gap-2 justify-content-center">
+                            @foreach (var rad in Model.Radicais)
+                            {
+                                <div class="text-center border rounded p-2 bg-white" style="min-width: 50px;">
+                                    <div class="fw-bold fs-5 text-primary">@rad.Caractere</div>
+                                    <div class="small text-muted" style="font-size: 0.75rem;">@rad.Descricao</div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted small text-center mb-0">Nenhum radical identificado.</p>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light fw-bold text-muted small">
+                    KANJIS SIMILARES
+                </div>
+                <div class="card-body">
+                    @if (Model.KanjisSimilares != null && Model.KanjisSimilares.Any())
+                    {
+                        <div class="d-flex flex-wrap gap-2 justify-content-center">
+                            @foreach (var sim in Model.KanjisSimilares)
+                            {
+                                <a asp-action="Detalhes" asp-route-id="@sim.Id" class="text-decoration-none">
+                                    <div class="text-center border rounded p-2 bg-white hover-shadow" style="min-width: 45px;">
+                                        <div class="fw-bold fs-5 text-dark">@sim.Caractere</div>
+                                    </div>
+                                </a>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted small text-center mb-0">Nenhum similar encontrado.</p>
+                    }
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-md-8">
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
+                    <span class="fw-bold"><i class="fa fa-edit"></i> Gerenciar Traduções</span>
+                </div>
+                <div class="card-body bg-light">
+
+                    <div class="row g-3 align-items-center mb-3">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Idioma:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select id="comboLingua" asp-for="LinguaSelecionadaId" asp-items="Model.LinguasDisponiveis" class="form-select"></select>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <h6 class="text-muted small fw-bold mb-2">ADICIONAR NOVA TRADUÇÃO</h6>
+
+                    <div class="input-group mb-2">
+                        <input type="text"
+                               id="txtNovaTraducao"
+                               class="form-control"
+                               placeholder="Digite o significado (Ex: Sol, Dia...)"
+                               spellcheck="true"
+                               lang="pt-BR"
+                               onkeyup="validarTextoDetalhes(this)"
+                               onkeypress="if(event.key === 'Enter'){ event.preventDefault(); adicionarNaLista(); }" />
+
+                        <div class="input-group-text bg-white">
+                            <input class="form-check-input mt-0 me-1" type="checkbox" id="chkPrincipal" aria-label="É principal?">
+                            <label class="form-check-label small text-muted" for="chkPrincipal">Principal?</label>
+                        </div>
+                        <button class="btn btn-primary" type="button" onclick="adicionarNaLista()">
+                            <i class="fa fa-plus"></i> Adicionar
+                        </button>
+                    </div>
+
+                    <small class="text-danger fw-bold" id="msgErroDetalhes" style="display:none"></small>
+                    <small class="text-muted fst-italic d-block mt-1">Pressione <b>Enter</b> para adicionar rapidamente.</small>
+
+                    <div id="containerChips" class="d-flex flex-wrap gap-2 mt-3 p-3 bg-white border rounded" style="min-height: 60px;">
+                        <span class="text-muted small w-100 text-center align-self-center fst-italic" id="msgListaVazia">
+                            As palavras a salvar aparecerão aqui...
+                        </span>
+                    </div>
+
+                    <div class="mt-3 text-end">
+                        <button id="btnSalvarTraducoes" class="btn btn-success px-4" onclick="salvarTraducoes()">
+                            <i class="fa fa-save"></i> Salvar Alterações
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold text-muted small">
+                    TRADUÇÕES CADASTRADAS
+                </div>
+                <div class="card-body">
+                    @if (Model.TraducoesAgrupadas != null && Model.TraducoesAgrupadas.Any())
+                    {
+                        @foreach (var grupo in Model.TraducoesAgrupadas)
+                        {
+                            <div class="mb-3">
+                                <h6 class="fw-bold text-secondary border-bottom pb-1">@grupo.Lingua</h6>
+                                <div class="list-group list-group-flush">
+                                    @foreach (var sig in grupo.Significados)
+                                    {
+                                        <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                            <div>
+                                                <span class="fs-5 @(sig.IsPrincipal ? "fw-bold text-primary" : "text-dark")">
+                                                    @sig.Texto
+                                                </span>
+                                                @if (sig.IsPrincipal)
+                                                {
+                                                    <span class="badge bg-warning text-dark ms-2 rounded-pill" style="font-size: 0.7em;">Principal</span>
+                                                }
+                                            </div>
+                                            <span onclick="excluirTraducaoDireta(@sig.Id)"
+                                                  class="hover-delete ms-1 fw-bold text-danger"
+                                                  title="Excluir"
+                                                  style="cursor: pointer; font-size: 1.3rem; line-height: 0.8;">
+                                                &times;
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center py-4 text-muted">
+                            <i class="fa fa-folder-open fa-2x mb-2 opacity-25"></i>
+                            <p>Nenhuma tradução cadastrada para este kanji.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // --- 1. ÁUDIO ---
+        function falarJapones(texto) {
+            if (!texto) return;
+            window.speechSynthesis.cancel();
+            if ('speechSynthesis' in window) {
+                const fala = new SpeechSynthesisUtterance(texto);
+                fala.lang = 'ja-JP'; fala.rate = 0.8;
+                window.speechSynthesis.speak(fala);
+            } else { alert("Navegador sem áudio."); }
+        }
+
+        // --- 2. LISTA TEMPORÁRIA (CHIPS) ---
+        let palavrasParaSalvar = [];
+
+        // Validação em Tempo Real
+        function validarTextoDetalhes(input) {
+            const texto = input.value.trim();
+            const msgErro = document.getElementById("msgErroDetalhes");
+
+            if (palavrasParaSalvar.some(p => p.texto.toLowerCase() === texto.toLowerCase())) {
+                msgErro.innerText = "⚠️ Esta palavra já está na lista de salvamento.";
+                msgErro.style.display = "block";
+                input.classList.add("is-invalid");
+            } else {
+                msgErro.style.display = "none";
+                input.classList.remove("is-invalid");
+            }
+        }
+
+        // Adicionar na Lista (Com Validação Completa)
+        function adicionarNaLista() {
+            const input = document.getElementById("txtNovaTraducao");
+            const chk = document.getElementById("chkPrincipal");
+            const texto = input.value.trim();
+            const msgErro = document.getElementById("msgErroDetalhes");
+
+            if (!texto) {
+                input.focus();
+                return;
+            }
+
+            // Verifica duplicidade
+            if (palavrasParaSalvar.some(p => p.texto.toLowerCase() === texto.toLowerCase())) {
+                msgErro.innerText = "⚠️ Esta palavra já está na lista.";
+                msgErro.style.display = "block";
+                return;
+            }
+
+            // Adiciona ao array
+            palavrasParaSalvar.push({
+                texto: texto,
+                principal: chk.checked
+            });
+
+            // Limpa input e estado de erro
+            input.value = "";
+            chk.checked = false;
+            msgErro.style.display = "none";
+            input.classList.remove("is-invalid");
+            input.focus();
+
+            renderizarChips();
+        }
+
+        function renderizarChips() {
+            const container = document.getElementById("containerChips");
+            const msgVazio = document.getElementById("msgListaVazia");
+            container.innerHTML = "";
+
+            if (palavrasParaSalvar.length === 0) {
+                container.appendChild(msgVazio);
+                msgVazio.style.display = "block";
+                return;
+            }
+
+            palavrasParaSalvar.forEach((item, index) => {
+                const badge = document.createElement("div");
+                badge.className = `badge ${item.principal ? 'bg-primary' : 'bg-secondary'} fs-6 py-2 px-3 d-flex align-items-center gap-2`;
+                badge.innerHTML = `
+                    <span>${item.texto} ${item.principal ? '<i class="fa fa-star text-warning"></i>' : ''}</span>
+                    <span class="ms-2 fw-bold text-white-50" style="cursor: pointer;" onclick="removerChip(${index})">&times;</span>
+                `;
+                container.appendChild(badge);
+            });
+        }
+
+        function removerChip(index) {
+            palavrasParaSalvar.splice(index, 1);
+            renderizarChips();
+        }
+
+        // --- 3. SALVAR VIA AJAX ---
+        async function salvarTraducoes() {
+            if (palavrasParaSalvar.length === 0) {
+                alert("Adicione pelo menos uma tradução à lista antes de salvar.");
+                return;
+            }
+
+            const btnSalvar = document.getElementById("btnSalvarTraducoes");
+            const comboLingua = document.getElementById("comboLingua");
+            const kId = @Model.KanjiId;
+
+            const payload = {
+                KanjiId: kId,
+                LinguaId: parseInt(comboLingua.value),
+                Palavras: palavrasParaSalvar.map(p => ({
+                    Texto: p.texto,
+                    EhPrincipal: p.principal
+                }))
+            };
+
+            const btnOriginalText = btnSalvar.innerText;
+            btnSalvar.disabled = true; btnSalvar.innerText = "Salvando...";
+
+            try {
+                const response = await fetch('/Kanji/SalvarTraducoes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(data.mensagem);
+                    window.location.reload();
+                } else {
+                    const erro = await response.text();
+                    alert("Erro ao salvar: " + erro);
+                }
+            } catch (error) {
+                alert("Erro de conexão: " + error);
+            } finally {
+                btnSalvar.disabled = false;
+                btnSalvar.innerText = btnOriginalText;
+            }
+        }
+
+        // --- 4. EXCLUIR DIRETO DA TELA DE DETALHES ---
+        async function excluirTraducaoDireta(id) {
+            if(!confirm("Tem certeza que deseja excluir esta tradução?")) return;
+
+            try {
+                const response = await fetch('/Kanji/ExcluirTraducao?id=' + id, { method: 'POST' });
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert("Erro ao excluir.");
+                }
+            } catch (e) { console.error(e); }
+        }
+    </script>
+}
+
+<style>
+    .hover-shadow:hover {
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+        transform: translateY(-2px);
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .hover-delete {
+        transition: transform 0.2s;
+        opacity: 0.7;
+    }
+
+        .hover-delete:hover {
+            transform: scale(1.3);
+            opacity: 1;
+        }
+</style>

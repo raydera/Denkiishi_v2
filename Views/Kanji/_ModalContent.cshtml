@@ -1,0 +1,187 @@
+﻿    @model Denkiishi_v2.Models.KanjiDetalhesViewModel
+
+    <input type="hidden" id="modalKanjiId" value="@Model.KanjiId" />
+
+    <div class="modal-header bg-primary text-white">
+        <div class="d-flex align-items-center gap-3">
+            <h1 class="m-0 fw-bold display-6">@Model.Caractere</h1>
+            <div>
+                <h5 class="modal-title m-0">Adicionar Tradução</h5>
+                <small class="text-white-50">Leitura: @Model.LeituraOnyomi</small>
+            </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body bg-light">
+        <div class="row">
+
+            <div class="col-md-5">
+                <div class="card shadow-sm text-center mb-3">
+                    <div class="card-body">
+                        <h1 class="display-3 fw-bold text-dark mb-0">@Model.Caractere</h1>
+                        <div class="d-flex align-items-center justify-content-center gap-2 mt-1">
+                            <p class="fs-4 text-muted mb-0">@Model.LeituraOnyomi</p>
+
+                            @if (!string.IsNullOrEmpty(Model.LeituraOnyomi))
+                            {
+                                <button onclick="falarJapones('@Model.LeituraOnyomi')"
+                                        class="btn btn-light text-secondary btn-sm rounded-circle border shadow-sm"
+                                        title="Ouvir Pronúncia (Onyomi)"
+                                        style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fa fa-volume-up"></i>
+                                </button>
+                            }
+                        </div>
+                        <small class="text-secondary">(Onyomi)</small>
+                    </div>
+                </div>
+
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-header bg-white py-1"><small class="fw-bold text-muted">Similares</small></div>
+                    <div class="card-body p-2">
+                        <div class="d-flex flex-wrap gap-2 justify-content-center">
+                            @foreach (var similar in Model.KanjisSimilares)
+                            {
+                                <a asp-controller="Kanji" asp-action="Detalhes" asp-route-id="@similar.Id"
+                                   class="btn btn-outline-secondary d-flex flex-column align-items-center p-1 text-decoration-none"
+                                   style="width: 60px; height: 60px;">
+                                    <span class="h5 d-block mb-0 text-dark">@similar.Caractere</span>
+                                    <small class="text-muted" style="font-size: 0.6rem;">@similar.Nome</small>
+                                </a>
+                            }
+                            @if (!Model.KanjisSimilares.Any())
+                            {
+                                <span class="text-muted small">Nenhum similar.</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white py-1"><small class="fw-bold text-muted">Radicais</small></div>
+                    <div class="card-body p-2">
+                        <ul class="list-unstyled mb-0">
+                            @foreach (var radical in Model.Radicais)
+                            {
+                                <li class="mb-1 d-flex align-items-center">
+                                    <span class="badge bg-secondary me-2">@radical.Caractere</span>
+                                    <small class="text-muted text-truncate" style="max-width: 150px;">@radical.Descricao</small>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-7">
+
+                <div class="card mb-3 shadow-sm">
+                    <div class="card-header bg-success text-white py-2">
+                        <strong><i class="fa fa-list"></i> Traduções Atuais</strong>
+                    </div>
+                    <div class="card-body p-2 bg-white" style="max-height: 150px; overflow-y: auto;">
+                        @if (Model.TraducoesAgrupadas.Any())
+                        {
+                            @foreach (var grupo in Model.TraducoesAgrupadas)
+                            {
+                                <div class="mb-2 border-bottom pb-2">
+                                    <strong class="text-success small d-block mb-1">@grupo.Lingua</strong>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @foreach (var sig in grupo.Significados)
+                                        {
+                                            <div class="@(sig.IsPrincipal ? "badge bg-primary text-white border d-flex align-items-center px-2 py-2" : "badge bg-light text-dark border d-flex align-items-center px-2 py-2")">
+
+                                                <span class="me-2">
+                                                    @sig.Texto
+                                                    @if (sig.IsPrincipal)
+                                                    {
+                                                        <i class="fa fa-star text-warning ms-1" title="Principal"></i>
+                                                    }
+                                                </span>
+
+                                                <span onclick="modalExcluirTraducao(@sig.Id)"
+                                                      class="hover-delete ms-1 fw-bold"
+                                                      title="Excluir"
+                                                      style="cursor: pointer; font-size: 1.3rem; line-height: 0.8; margin-top: 3px; color: @(sig.IsPrincipal ? "white" : "#dc3545");">
+                                                    &times;
+                                                </span>
+
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="text-muted small mb-0 text-center py-2">Nenhuma tradução cadastrada.</p>
+                        }
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-primary">
+                    <div class="card-header bg-primary text-white py-2">
+                        <strong><i class="fa fa-plus-circle"></i> Nova Tradução</strong>
+                    </div>
+                    <div class="card-body p-2">
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold mb-1">Idioma:</label>
+                            <select asp-for="LinguaSelecionadaId" asp-items="Model.LinguasDisponiveis" class="form-select form-select-sm" id="modalComboLingua"></select>
+                        </div>
+
+                    <div class="input-group mb-2">
+                        <input type="text"
+                               id="modalInputPalavra"
+                               class="form-control"
+                               placeholder="Digite e dê Enter..."
+                               spellcheck="true"
+                               lang="pt-BR"
+                               onkeyup="validarTextoEmTempoReal(this)"
+                               onkeypress="if(event.key === 'Enter'){ event.preventDefault(); modalAddPalavra(); }" />
+
+                        <button class="btn btn-outline-primary btn-sm" type="button" onclick="modalAddPalavra()">Adicionar</button>
+                    </div>
+
+                        <h6 class="small fw-bold text-muted mt-3 mb-1">Palavras a salvar:</h6>
+                        <div id="modalContainerChips" class="d-flex flex-wrap gap-2 mb-3 p-2 bg-light rounded border" style="min-height: 80px;">
+                            <span class="text-muted small w-100 text-center align-self-center fst-italic" id="msgVazio">Lista vazia...</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer d-flex">
+
+        <span id="msgErroModal" class="text-danger fw-bold small me-auto shake-text text-truncate" style="display: none; max-width: 50%;"></span>
+
+        <div class="ms-auto">
+
+            <div id="footerBtnDefault" class="gap-2" style="display: flex;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-success px-4" id="btnModalSalvar" onclick="modalSalvar()">Salvar Contribuições</button>
+            </div>
+
+            <div id="footerBtnConfirm" class="align-items-center gap-2" style="display: none;">
+                <span class="text-dark fw-bold small me-2">Tem certeza?</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelarExclusao()">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-danger px-3" id="btnConfirmarExclusao">Sim, excluir</button>
+            </div>
+
+        </div>
+    </div>
+
+    <style>
+        .hover-delete {
+            transition: transform 0.2s;
+            opacity: 0.8;
+        }
+
+            .hover-delete:hover {
+                transform: scale(1.4);
+                opacity: 1;
+            }
+    </style>

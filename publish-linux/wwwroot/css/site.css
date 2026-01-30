@@ -1,0 +1,122 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+}
+
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+  color: var(--bs-secondary-color);
+  text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+  text-align: start;
+}
+/* =========================================
+   NAVBAR CUSTOMIZATION
+   ========================================= */
+
+/* Espaçamento da marca */
+.tracking-tight {
+    letter-spacing: -0.5px;
+}
+
+/* Links do Menu */
+.navbar-nav .nav-link {
+    color: rgba(255, 255, 255, 0.75) !important; /* Branco suave */
+    transition: all 0.3s ease;
+    border: 1px solid transparent; /* Evita pulo no hover */
+}
+
+    /* Hover (Passar o mouse) */
+    .navbar-nav .nav-link:hover {
+        color: #fff !important;
+        background-color: rgba(255, 255, 255, 0.1);
+        transform: translateY(-1px); /* Sobe um pouquinho */
+    }
+
+    /* Active (Página Atual) */
+    .navbar-nav .nav-link.active {
+        color: #fff !important;
+        background-color: #0d6efd !important; /* Azul Bootstrap */
+        box-shadow: 0 4px 6px rgba(13, 110, 253, 0.3); /* Sombra neon suave */
+    }
+
+/* Dropdown Menu */
+.dropdown-menu {
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+}
+
+.dropdown-item {
+    border-radius: 0.25rem;
+    padding: 8px 16px;
+    transition: background-color 0.2s;
+}
+
+    .dropdown-item:hover {
+        background-color: #f0f2f5;
+        color: #0d6efd;
+    }
+
+/* Ajuste do botão toggle no mobile */
+.navbar-toggler {
+    border: none;
+}
+
+    .navbar-toggler:focus {
+        box-shadow: none;
+    }
+
+/* =========================================
+   DASHBOARD / HOME
+   ========================================= */
+
+/* Fundo da Página (Um cinza bem clarinho para destacar os cards brancos) */
+body {
+    background-color: #f8f9fa;
+}
+
+/* Card Hover Effect */
+.card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+    .card-hover:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+    }
+
+/* Module Cards (Radical, Kanji...) */
+.module-card {
+    transition: all 0.3s;
+}
+
+    .module-card:hover {
+        border-color: rgba(0,0,0,0.1) !important;
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+
+/* Hero Section */
+.hero-section {
+    background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+}

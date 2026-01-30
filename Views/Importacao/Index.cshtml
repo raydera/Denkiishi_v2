@@ -1,0 +1,67 @@
+﻿@{
+    ViewData["Title"] = "Importação de Kanjis";
+}
+
+<div class="container mt-5">
+    <h2>⚡ Importador Tanos / JLPT</h2>
+    <p>Selecione o arquivo JSON contendo os dados dos Kanjis para importar ou atualizar.</p>
+
+    @if (ViewBag.Mensagem != null)
+    {
+        <div class="alert alert-success">
+            @ViewBag.Mensagem
+        </div>
+    }
+
+    <div class="card p-4">
+        <form asp-controller="Importacao" asp-action="ImportarTanos" method="post" enctype="multipart/form-data">
+
+            <div class="mb-3">
+                <label for="arquivoJson" class="form-label">Arquivo JSON</label>
+                <input type="file" class="form-control" name="arquivoJson" id="arquivoJson" accept=".json" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                📤 Iniciar Importação
+            </button>
+        </form>
+    </div>
+
+    <div class="mt-4">
+        <h4>Estrutura esperada do JSON:</h4>
+        <pre class="bg-light p-3 border rounded">
+[
+  {
+    "Kanji": "日",
+    "JlptLevel": "N5",
+    "Strokes": 4,
+    "Meaning": "Day, Sun"
+  },
+  ...
+]
+        </pre>
+    </div>
+    <hr class="my-5" />
+
+    <div class="card p-4 border-warning">
+        <h4 class="text-warning">🛠️ Ferramentas Administrativas</h4>
+        <p>Gere um script SQL para ativar (<code>is_active = true</code>) todos os kanjis presentes num ficheiro JSON.</p>
+
+        <form asp-controller="Importacao" asp-action="GerarScriptSql" method="post" enctype="multipart/form-data">
+            <div class="row align-items-end">
+                <div class="col-md-8">
+                    <label for="jsonScript" class="form-label">Selecione o JSON (Jouyou)</label>
+                    <input type="file" class="form-control" name="arquivoJson" id="jsonScript" accept=".json" required>
+                </div>
+                <div class="col-md-4 mt-3 mt-md-0">
+                    <button type="submit" class="btn btn-warning w-100">
+                        📜 Baixar Script SQL
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+</div> ```
+
+</div>
