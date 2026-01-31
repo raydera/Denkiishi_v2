@@ -1,0 +1,24 @@
+﻿@foreach (var m in Model.ExistingMeanings)
+{
+    <tr>
+        <td><span class="badge bg-secondary">@m.Language?.Description</span></td>
+        <td>@m.Meaning</td>
+    </tr>
+}
+
+<select name="languageId" class="form-select form-select-sm" required>
+    @foreach (var lang in Model.AvailableLanguages)
+    {
+        <option value="@lang.Id">@lang.Description</option>
+    }
+</select>
+
+@foreach (var s in Model.ExistingSentences)
+{
+    <tr>
+        <td>
+            <div class="fw-bold text-primary">@s.Jp</div> <div class="text-muted small">@s.En</div>
+        </td>
+        <td>@s.Language?.LanguageCode</td>
+    </tr>
+}

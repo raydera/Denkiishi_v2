@@ -51,6 +51,7 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
 
     public virtual DbSet<ReviewHistory> ReviewHistories { get; set; }
 
+
     // --- ATENÇÃO AQUI ---
     // Renomeei de "Users" para "GameUsers" para não conflitar com o sistema de Login.
     // O sistema de Login usará a propriedade "Users" (herdada) para autenticação.
@@ -71,6 +72,8 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
     public virtual DbSet<VocabularyMeaning> VocabularyMeanings { get; set; }
 
     public virtual DbSet<VocabularyReading> VocabularyReadings { get; set; }
+    public virtual DbSet<VocabularyComposition> VocabularyCompositions { get; set; }
+    
     public virtual DbSet<Category> Categories { get; set; }
     public virtual DbSet<KanjiCategoryMap> KanjiCategoryMaps { get; set; } // DbSet da tabela de ligação
     public virtual DbSet<KanjiAuditLog> KanjiAuditLogs { get; set; }
@@ -647,6 +650,14 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
             entity.HasOne(d => d.Vocabulary).WithMany(p => p.VocabularyMeanings)
                 .HasForeignKey(d => d.VocabularyId)
                 .HasConstraintName("vocabulary_meaning_vocabulary_id_fkey");
+        });
+        modelBuilder.Entity<VocabularyComposition>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("vocabulary_composition_pkey");
+            entity.ToTable("vocabulary_composition");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.VocabularyId).HasColumnName("vocabulary_id");
+            entity.Property(e => e.KanjiId).HasColumnName("kanji_id");
         });
 
         modelBuilder.Entity<VocabularyReading>(entity =>

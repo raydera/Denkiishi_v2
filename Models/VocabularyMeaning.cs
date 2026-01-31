@@ -6,12 +6,13 @@ namespace Denkiishi_v2.Models;
 public partial class VocabularyMeaning
 {
     public int Id { get; set; }
-
     public int VocabularyId { get; set; }
-
     public string Meaning { get; set; } = null!;
 
-    public bool? IsPrimary { get; set; }
+    // Campos necessários para a tradução por idioma
+    public int LanguageId { get; set; }
+    public string? Type { get; set; } // 'primary', 'alternative', etc.
 
     public virtual Vocabulary Vocabulary { get; set; } = null!;
+    public virtual Language Language { get; set; } = null!;
 }
