@@ -79,3 +79,4 @@ namespace Denkiishi_v2.Controllers
             return RedirectToAction(nameof(Edit), new { id = vocabularyId });
         }
     }
+}

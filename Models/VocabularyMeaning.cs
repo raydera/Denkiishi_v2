@@ -15,4 +15,5 @@ public partial class VocabularyMeaning
 
     public virtual Vocabulary Vocabulary { get; set; } = null!;
     public virtual Language Language { get; set; } = null!;
+    public object IsPrimary { get; internal set; }
 }

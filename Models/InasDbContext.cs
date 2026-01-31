@@ -626,7 +626,7 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.En).HasColumnName("en");
-            entity.Property(e => e.Ja).HasColumnName("ja");
+            //entity.Property(e => e.Ja).HasColumnName("ja");
             entity.Property(e => e.VocabularyId).HasColumnName("vocabulary_id");
 
             entity.HasOne(d => d.Vocabulary).WithMany(p => p.VocabularyContextSentences)
