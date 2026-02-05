@@ -43,5 +43,10 @@ namespace Denkiishi_v2.Services.WaniKani.Dtos
 
     // ... (Classes Meaning e Reading iguais ao anterior)
     public class WaniKaniMeaning { [JsonPropertyName("meaning")] public string Meaning { get; set; } = string.Empty; [JsonPropertyName("primary")] public bool Primary { get; set; } }
-    public class WaniKaniReading { [JsonPropertyName("type")] public string Type { get; set; } = string.Empty; [JsonPropertyName("reading")] public string Reading { get; set; } = string.Empty; }
+    public class WaniKaniReading
+    {
+        [JsonPropertyName("type")] public string Type { get; set; } = string.Empty;
+        [JsonPropertyName("reading")] public string Reading { get; set; } = string.Empty;
+        [JsonPropertyName("primary")] public bool Primary { get; set; } // <--- ADICIONE ESTA LINHA
+    }
 }

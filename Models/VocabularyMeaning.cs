@@ -12,8 +12,8 @@ public partial class VocabularyMeaning
     // Campos necessários para a tradução por idioma
     public int LanguageId { get; set; }
     public string? Type { get; set; } // 'primary', 'alternative', etc.
-
+    public bool IsPrimary { get; internal set; }
     public virtual Vocabulary Vocabulary { get; set; } = null!;
     public virtual Language Language { get; set; } = null!;
-    public object IsPrimary { get; internal set; }
+   
 }

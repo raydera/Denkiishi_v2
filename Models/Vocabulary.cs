@@ -13,9 +13,9 @@ public partial class Vocabulary
 
     public short? Level { get; set; }
 
-    public string? MeaningMnemonic { get; set; }
+    //public string? MeaningMnemonic { get; set; }
 
-    public string? ReadingMnemonic { get; set; }
+   // public string? ReadingMnemonic { get; set; }
 
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
 

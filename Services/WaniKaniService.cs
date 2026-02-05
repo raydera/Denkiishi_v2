@@ -111,13 +111,13 @@ namespace Denkiishi_v2.Services
 
                             foreach (var r in item.Data.Readings)
                             {
-                                // CORREÇÃO 1: Usando 'IsPrimary' conforme seu DTO (WaniKaniResponses.cs)
-                                novoVocab.VocabularyReadings.Add(new VocabularyReading { Reading = r.Reading, IsPrimary = r.IsPrimary });
+                                // VALIDAÇÃO: No seu DTO 'WaniKaniReading', a propriedade chama-se 'IsPrimary'
+                                novoVocab.VocabularyReadings.Add(new VocabularyReading { Reading = r.Reading, IsPrimary = r.Primary }); 
                             }
 
                             foreach (var s in item.Data.ContextSentences)
                             {
-                                // CORREÇÃO 2: Usando 'En' e 'Jp' conforme seu Model (VocabularyContextSentence.cs)
+                                // VALIDAÇÃO: No seu DTO é 'Ja' e 'En'. No seu Model é 'Jp' e 'En'.
                                 novoVocab.VocabularyContextSentences.Add(new VocabularyContextSentence { En = s.En, Jp = s.Ja, LanguageId = idLangEn });
                             }
 
@@ -132,7 +132,6 @@ namespace Denkiishi_v2.Services
                 nextUrl = result.Pages?.NextUrl;
             }
 
-            // FASE 2: Relacionamentos (Usando a nova classe VocabularyComposition)
             var mapaRadicais = await _context.Radicals.Where(r => r.WanikaniId != null).ToDictionaryAsync(r => r.WanikaniId!.Value, r => r.Id);
             var mapaKanjis = await _context.Kanjis.Where(k => k.WanikaniId != null).ToDictionaryAsync(k => k.WanikaniId!.Value, k => k.Id);
 
