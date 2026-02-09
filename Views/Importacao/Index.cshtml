@@ -1,67 +1,78 @@
 ﻿@{
-    ViewData["Title"] = "Importação de Kanjis";
+    ViewData["Title"] = "Central de Importação";
 }
 
 <div class="container mt-5">
-    <h2>⚡ Importador Tanos / JLPT</h2>
-    <p>Selecione o arquivo JSON contendo os dados dos Kanjis para importar ou atualizar.</p>
+    <h2>🚀 Central de Importação de Dados</h2>
+    <hr />
 
-    @if (ViewBag.Mensagem != null)
+    @if (TempData["Sucesso"] != null)
     {
-        <div class="alert alert-success">
-            @ViewBag.Mensagem
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Sucesso!</strong> @TempData["Sucesso"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["Erro"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>Erro!</strong> @TempData["Erro"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
 
-    <div class="card p-4">
-        <form asp-controller="Importacao" asp-action="ImportarTanos" method="post" enctype="multipart/form-data">
-
-            <div class="mb-3">
-                <label for="arquivoJson" class="form-label">Arquivo JSON</label>
-                <input type="file" class="form-control" name="arquivoJson" id="arquivoJson" accept=".json" required>
-            </div>
-
-            <button type="submit" class="btn btn-primary">
-                📤 Iniciar Importação
-            </button>
-        </form>
-    </div>
-
-    <div class="mt-4">
-        <h4>Estrutura esperada do JSON:</h4>
-        <pre class="bg-light p-3 border rounded">
-[
-  {
-    "Kanji": "日",
-    "JlptLevel": "N5",
-    "Strokes": 4,
-    "Meaning": "Day, Sun"
-  },
-  ...
-]
-        </pre>
-    </div>
-    <hr class="my-5" />
-
-    <div class="card p-4 border-warning">
-        <h4 class="text-warning">🛠️ Ferramentas Administrativas</h4>
-        <p>Gere um script SQL para ativar (<code>is_active = true</code>) todos os kanjis presentes num ficheiro JSON.</p>
-
-        <form asp-controller="Importacao" asp-action="GerarScriptSql" method="post" enctype="multipart/form-data">
-            <div class="row align-items-end">
-                <div class="col-md-8">
-                    <label for="jsonScript" class="form-label">Selecione o JSON (Jouyou)</label>
-                    <input type="file" class="form-control" name="arquivoJson" id="jsonScript" accept=".json" required>
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">🇯🇵 Dicionário JMdict (XML)</h5>
                 </div>
-                <div class="col-md-4 mt-3 mt-md-0">
-                    <button type="submit" class="btn btn-warning w-100">
-                        📜 Baixar Script SQL
-                    </button>
+                <div class="card-body">
+                    <p class="text-muted small">Importa termos, leituras e significados para a <strong>tabela matriz</strong>.</p>
+                    <form asp-action="ImportarVocabulario" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Arquivo JMdict.xml</label>
+                            <input type="file" name="xmlFile" class="form-control" accept=".xml" required />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">📥 Rodar Importação para Matriz</button>
+                    </form>
                 </div>
             </div>
-        </form>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">🔡 Base Tanos / David Luz (JSON)</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Importa strokes, níveis JLPT e readings diretamente para as tabelas oficiais.</p>
+                    <form asp-action="ImportarTanos" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Arquivo kanji_pt.json</label>
+                            <input type="file" class="form-control" name="arquivoJson" accept=".json" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">📤 Iniciar Importação Kanji</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
-</div> ```
-
+    <div class="card border-warning mt-2 shadow-sm">
+        <div class="card-body">
+            <h5 class="text-warning">🛠️ Ferramentas de Manutenção</h5>
+            <form asp-action="GerarScriptSql" method="post" enctype="multipart/form-data" class="row g-3">
+                <div class="col-auto">
+                    <label class="col-form-label">Ativação em Massa:</label>
+                </div>
+                <div class="col-md-6">
+                    <input type="file" class="form-control" name="arquivoJson" accept=".json" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-warning">📜 Baixar Script .sql</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>

@@ -36,6 +36,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<WaniKaniService>(); // Serviço do WaniKani
 builder.Services.AddScoped<Denkiishi_v2.Services.KanjiSeedService>();
 
+//import vocabulário
+builder.Services.AddScoped<VocabularyImportService>();
+
 var app = builder.Build();
 
 // --- 2. CONFIGURAR O PIPELINE DE REQUISIÇÕES HTTP ---
