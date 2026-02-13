@@ -1,12 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Denkiishi_v2.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Denkiishi_v2.Models;
-using Microsoft.AspNetCore.Authorization;
-using System;
 
 namespace Denkiishi_v2.Controllers
 {
@@ -21,7 +21,7 @@ namespace Denkiishi_v2.Controllers
         }
 
         // ==========================================================
-        // 1. INDEX (SEU CÓDIGO ATUAL - ESTÁ SEGURO E CORRETO)
+        // 1. INDEX
         // ==========================================================
         public async Task<IActionResult> Index(int? categoriaId, int? linguaId)
         {
@@ -40,7 +40,7 @@ namespace Denkiishi_v2.Controllers
                 viewModel.CategoriaSelecionadaId = padrao?.Id ?? 0;
             }
 
-            // B. Carregar Línguas (Sua lógica do "Pulo do Gato" mantida)
+            // B. Carregar Línguas
             var linguasDb = await _context.Language.Where(l => l.IsActive == true).ToListAsync();
 
             if (linguaId.HasValue) viewModel.LinguaSelecionadaId = linguaId.Value;
@@ -94,10 +94,12 @@ namespace Denkiishi_v2.Controllers
         [HttpGet]
         public async Task<IActionResult> DetalhesModal(int? id)
         {
-            var model = await MontarViewModelDetalhes(id); // Usa método auxiliar para não repetir código
+            var model = await MontarViewModelDetalhes(id);
             if (model == null) return NotFound();
 
-            return PartialView("_ModalContent", model);
+            // Retorna a PartialView que contém o Modal Deslizante
+            // Certifique-se que o nome do arquivo cshtml está correto (ex: "_ModalContent" ou "DetalhesModal")
+            return PartialView("DetalhesModal", model);
         }
 
         // ==========================================================
@@ -108,12 +110,60 @@ namespace Denkiishi_v2.Controllers
             var model = await MontarViewModelDetalhes(id);
             if (model == null) return NotFound();
 
-            // AQUI ESTÁ A CORREÇÃO: Retorna a View normal com Layout
             return View("Detalhes", model);
         }
 
         // ==========================================================
-        // MÉTODO AUXILIAR (Evita duplicar código entre Modal e Detalhes)
+        // 4. SALVAR HISTÓRIA (NOVO MÉTODO BACKEND)
+        // ==========================================================
+        [HttpPost]
+        public async Task<IActionResult> SalvarHistoriaMeaning([FromBody] SalvarHistoriaRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Texto))
+                return BadRequest("Texto inválido.");
+
+            try
+            {
+                // 1. Desativar histórias antigas (Versionamento)
+                var historiasAntigas = await _context.KanjiMeaningMnemonics
+                    .Where(m => m.KanjiMeaningId == request.MeaningId && m.IsActive)
+                    .ToListAsync();
+
+                foreach (var h in historiasAntigas)
+                {
+                    h.IsActive = false;
+                }
+
+                // 2. Criar nova história
+                var novaHistoria = new KanjiMeaningMnemonic
+                {
+                    KanjiMeaningId = request.MeaningId,
+                    Text = request.Texto,
+                    IsActive = true,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                };
+
+                _context.KanjiMeaningMnemonics.Add(novaHistoria);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { mensagem = "História salva com sucesso!" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erro ao salvar: {ex.Message}");
+            }
+        }
+
+        // Classe auxiliar para receber o JSON do Front
+        public class SalvarHistoriaRequest
+        {
+            public int MeaningId { get; set; }
+            public string Texto { get; set; }
+        }
+
+        // ==========================================================
+        // MÉTODO AUXILIAR (Monta os dados e verifica se tem história)
         // ==========================================================
         private async Task<KanjiDetalhesViewModel> MontarViewModelDetalhes(int? id)
         {
@@ -131,6 +181,13 @@ namespace Denkiishi_v2.Controllers
             var leiturasOnyomi = kanji.KanjiReadings.Where(r => r.Type == "onyomi" || r.Type == "ONYOMI").Select(r => r.ReadingKana).ToList();
             string textoLeitura = leiturasOnyomi.Any() ? string.Join(", ", leiturasOnyomi) : "-";
 
+            // Buscar IDs de Significados que têm história ativa (para performance, busca todos de uma vez)
+            var idsMeaningsDoKanji = kanji.KanjiMeanings.Select(m => m.Id).ToList();
+            var meaningsComHistoria = await _context.KanjiMeaningMnemonics
+                .Where(m => idsMeaningsDoKanji.Contains(m.KanjiMeaningId) && m.IsActive)
+                .Select(m => m.KanjiMeaningId)
+                .ToListAsync();
+
             var model = new KanjiDetalhesViewModel
             {
                 KanjiId = kanji.Id,
@@ -143,19 +200,29 @@ namespace Denkiishi_v2.Controllers
                                ?? r.RadicalMeanings.FirstOrDefault()?.Description ?? "Sem descrição";
                     return new RadicalDto { Caractere = r.Literal ?? "?", Descricao = desc };
                 }).Where(x => x != null).ToList(),
+
                 KanjisSimilares = kanji.KanjiSimilarityIdKanjiNavigations.Select(s => {
                     var sim = s.IdKanjiSimilarNavigation;
                     if (sim == null) return null;
                     var sig = sim.KanjiMeanings?.FirstOrDefault(m => m.IsPrincipal == true)?.Gloss ?? "Sem tradução";
                     return new KanjiSimilarDto { Id = sim.Id, Caractere = sim.Literal, Nome = sig };
                 }).Where(x => x != null).ToList(),
+
+                // AQUI ESTÁ A LÓGICA CORRIGIDA E INTEGRADA
                 TraducoesAgrupadas = kanji.KanjiMeanings
                     .Where(m => m.IdLanguageNavigation != null)
                     .GroupBy(m => m.IdLanguageNavigation.Description)
                     .Select(g => new GrupoTraducaoDto
                     {
                         Lingua = g.Key ?? "Indefinida",
-                        Significados = g.Select(m => new SignificadoDto { Id = m.Id, Texto = m.Gloss, IsPrincipal = m.IsPrincipal ?? false }).ToList()
+                        Significados = g.Select(m => new SignificadoDto
+                        {
+                            Id = m.Id,
+                            Texto = m.Gloss,
+                            IsPrincipal = m.IsPrincipal ?? false,
+                            // Verifica se este ID está na lista de quem tem história
+                            TemHistoria = meaningsComHistoria.Contains(m.Id)
+                        }).ToList()
                     }).ToList()
             };
 
@@ -174,7 +241,7 @@ namespace Denkiishi_v2.Controllers
         }
 
         // ==========================================================
-        // 4. MÉTODOS DE SALVAR E EXCLUIR (Mantidos)
+        // 5. MÉTODOS DE SALVAR E EXCLUIR TRADUÇÃO (Mantidos)
         // ==========================================================
         [HttpPost]
         public async Task<IActionResult> SalvarTraducoes([FromBody] SalvarTraducaoRequest dados)
@@ -186,7 +253,7 @@ namespace Denkiishi_v2.Controllers
                 foreach (var item in dados.Palavras)
                 {
                     bool jaExiste = await _context.KanjiMeanings.AnyAsync(m => m.KanjiId == dados.KanjiId && m.IdLanguage == dados.LinguaId && m.Gloss.ToLower() == item.Texto.ToLower());
-                    if (jaExiste) return BadRequest($"A palavra '{item.Texto}' já está cadastrada.");
+                    if (jaExiste) continue; // Evita erro se tentar salvar duplicado
 
                     if (item.EhPrincipal)
                     {
@@ -208,16 +275,20 @@ namespace Denkiishi_v2.Controllers
         [HttpPost]
         public async Task<IActionResult> ExcluirTraducao(int id)
         {
-            var t = await _context.KanjiMeanings.FindAsync(id);
-            if (t == null) return NotFound("Tradução não encontrada.");
+            try
+            {
+                var t = await _context.KanjiMeanings.FindAsync(id);
+                if (t == null) return NotFound("Tradução não encontrada.");
 
-            int kId = t.KanjiId;
-            int lId = t.IdLanguage ?? 0;
-            _context.KanjiMeanings.Remove(t);
-            await _context.SaveChangesAsync();
+                int kId = t.KanjiId;
+                int lId = t.IdLanguage ?? 0;
+                _context.KanjiMeanings.Remove(t);
+                await _context.SaveChangesAsync();
 
-            bool temMais = await _context.KanjiMeanings.AnyAsync(m => m.KanjiId == kId && m.IdLanguage == lId);
-            return Ok(new { mensagem = "Removido!", temMais = temMais, id = kId });
+                bool temMais = await _context.KanjiMeanings.AnyAsync(m => m.KanjiId == kId && m.IdLanguage == lId);
+                return Ok(new { mensagem = "Removido!", temMais = temMais, id = kId });
+            }
+            catch (Exception ex) { return BadRequest(ex.Message); }
         }
     }
 }

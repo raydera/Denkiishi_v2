@@ -21,6 +21,15 @@
         </div>
     }
 
+    @* --- Bloco de Mensagem da Sincronização do Jisho --- *@
+    @if (TempData["Mensagem"] != null)
+    {
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="fa fa-info-circle"></i> @TempData["Mensagem"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
     <div class="row">
         <div class="col-md-6 mb-4">
             <div class="card h-100 shadow-sm border-primary">
@@ -59,6 +68,113 @@
         </div>
     </div>
 
+    <div class="card border-info mt-2 shadow-sm mb-4">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">📡 Sincronização API Jisho.org (Automática)</h5>
+            <span id="statusBadge" class="badge bg-light text-dark d-none">Processando...</span>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-12">
+                    <p class="card-text text-muted small">
+                        Clique em iniciar e deixe a página aberta. O sistema processará tudo automaticamente.
+                    </p>
+
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                             role="progressbar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span id="statsText" class="text-muted">Aguardando início...</span>
+                        <button id="btnStart" class="btn btn-info text-white" onclick="iniciarSincronizacao()">
+                            <i class="fa fa-play"></i> Iniciar Automático
+                        </button>
+                    </div>
+
+                    <div class="bg-dark text-light p-2 rounded" style="height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
+                        <div id="logConsole">
+                            > Pronto para iniciar...<br />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var isRunning = false;
+
+        function iniciarSincronizacao() {
+            if (isRunning) return;
+
+            isRunning = true;
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnStart').innerHTML = '<i class="fa fa-spinner fa-spin"></i> Rodando...';
+            document.getElementById('statusBadge').classList.remove('d-none');
+
+            adicionarLog("> 🚀 Iniciando o loop de sincronização...");
+            processarLote();
+        }
+
+        function processarLote() {
+            // Chama o método no Controller
+            fetch('@Url.Action("SincronizarJishoJson", "Importacao")', {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': document.getElementsByName('__RequestVerificationToken')[0]?.value // Se tiver anti-forgery
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.finalizado) {
+                    atualizarInterface(100, 0, data.total);
+                    adicionarLog("> ✅ " + data.mensagem);
+                    finalizarProcesso();
+                } else {
+                    // Atualiza a barra
+                    atualizarInterface(data.progresso, data.restantes, data.total);
+
+                    // Mostra o que processou nesse lote
+                    if(data.log && data.log.length > 0) {
+                        data.log.forEach(msg => adicionarLog(msg));
+                    }
+
+                    // CHAMA O PRÓXIMO LOTE AUTOMATICAMENTE (Recursividade)
+                    adicionarLog(`> ⏳ Pausa rápida... (Restam: ${data.restantes})`);
+                    setTimeout(processarLote, 1000); // Espera 1s entre lotes para o navegador respirar
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                adicionarLog("> ❌ Ocorreu um erro de conexão. Tentando novamente em 5s...");
+                setTimeout(processarLote, 5000); // Tenta de novo se der erro de rede
+            });
+        }
+
+        function atualizarInterface(porcentagem, restantes, total) {
+            var bar = document.getElementById('progressBar');
+            bar.style.width = porcentagem + '%';
+            bar.innerText = porcentagem + '%';
+
+            document.getElementById('statsText').innerText = `Restam: ${restantes} de ${total}`;
+        }
+
+        function adicionarLog(texto) {
+            var consoleDiv = document.getElementById('logConsole');
+            consoleDiv.innerHTML += texto + "<br/>";
+            consoleDiv.scrollTop = consoleDiv.scrollHeight; // Rola para o fim
+        }
+
+        function finalizarProcesso() {
+            isRunning = false;
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnStart').innerHTML = '<i class="fa fa-check"></i> Concluído';
+            document.getElementById('statusBadge').classList.add('d-none');
+        }
+    </script>
     <div class="card border-warning mt-2 shadow-sm">
         <div class="card-body">
             <h5 class="text-warning">🛠️ Ferramentas de Manutenção</h5>

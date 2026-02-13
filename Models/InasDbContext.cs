@@ -46,10 +46,35 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
     public virtual DbSet<Category> Categories { get; set; }
     public virtual DbSet<KanjiCategoryMap> KanjiCategoryMaps { get; set; }
     public virtual DbSet<KanjiAuditLog> KanjiAuditLogs { get; set; }
+    public DbSet<VocabularyPartOfSpeech> VocabularyPartsOfSpeech { get; set; }
+    public DbSet<VocabularyPartOfSpeechMap> VocabularyPartsOfSpeechMaps { get; set; }
+    public virtual DbSet<SyntaxHighlight> SyntaxHighlights { get; set; }
+
+    public virtual DbSet<KanjiMeaningMnemonic> KanjiMeaningMnemonics { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<VocabularyPartOfSpeechMap>(entity =>
+        {
+            // Define a chave primária composta
+            entity.HasKey(e => new { e.VocabularyId, e.VocabularyPartOfSpeechId });
+
+            // Relacionamento com Vocabulary
+            entity.HasOne(e => e.Vocabulary)
+                  .WithMany() // Se quiser acessar do Vocabulario, precisaremos adicionar uma Collection lá
+                  .HasForeignKey(e => e.VocabularyId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            // Relacionamento com PartOfSpeech
+            entity.HasOne(e => e.PartOfSpeech)
+                  .WithMany(p => p.VocabularyMaps)
+                  .HasForeignKey(e => e.VocabularyPartOfSpeechId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+
 
         modelBuilder.Entity<KanjiCategoryMap>(entity =>
         {
@@ -433,6 +458,14 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.HasSequence("usuario_sinonimo_kanji_radical_id_seq");
 
         OnModelCreatingPartial(modelBuilder);
+
+        modelBuilder.Entity<SyntaxHighlight>(entity =>
+        {
+            entity.Property(e => e.IsBold).HasDefaultValue(false);
+            entity.Property(e => e.IsItalic).HasDefaultValue(false);
+            entity.Property(e => e.IsUnderline).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

@@ -1,192 +1,206 @@
-﻿using Denkiishi_v2.Models;
-using Denkiishi_v2.Services;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using Denkiishi_v2.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Denkiishi_v2.Controllers
 {
-    // DTO para mapear o JSON do David Luz (Kanjis)
-    public class DavidLuzKanjiDto
-    {
-        [JsonPropertyName("strokes")]
-        public int Strokes { get; set; }
-        [JsonPropertyName("grade")]
-        public int? Grade { get; set; }
-        [JsonPropertyName("freq")]
-        public int? Freq { get; set; }
-        [JsonPropertyName("jlpt_new")]
-        public int? JlptNew { get; set; }
-        [JsonPropertyName("meanings")]
-        public List<string>? Meanings { get; set; }
-        [JsonPropertyName("readings_on")]
-        public List<string>? ReadingsOn { get; set; }
-        [JsonPropertyName("readings_kun")]
-        public List<string>? ReadingsKun { get; set; }
-    }
-
     public class ImportacaoController : Controller
     {
         private readonly InasDbContext _context;
-        private readonly VocabularyImportService _vocabularyImportService;
+        private readonly ILogger<ImportacaoController> _logger;
 
-        public ImportacaoController(InasDbContext context, VocabularyImportService vocabularyImportService)
+        public ImportacaoController(InasDbContext context, ILogger<ImportacaoController> logger)
         {
             _context = context;
-            _vocabularyImportService = vocabularyImportService;
+            _logger = logger;
         }
 
-        // 1. Tela Inicial Única
-        [HttpGet]
         public IActionResult Index()
         {
             return View();
         }
 
-        // --- SEÇÃO DE VOCABULÁRIO (JMdict) ---
-
         [HttpPost]
-        [RequestSizeLimit(200_000_000)] // Aumentado para 200MB pois o JMdict é grande
-        public async Task<IActionResult> ImportarVocabulario(IFormFile xmlFile)
+        public async Task<IActionResult> SincronizarJishoJson()
         {
-            if (xmlFile == null || xmlFile.Length == 0)
+            // Reduzi o lote para 5 para testarmos se o salvamento funciona
+            // Depois podemos aumentar para 20
+            int tamanhoLote = 5;
+
+            var idsProcessados = await _context.VocabularyPartsOfSpeechMaps
+                .Select(m => m.VocabularyId)
+                .Distinct()
+                .ToListAsync();
+
+            var loteVocabulario = await _context.Vocabularies
+                .Where(v => !idsProcessados.Contains(v.Id))
+                .OrderBy(v => v.Id)
+                .Take(tamanhoLote)
+                .ToListAsync();
+
+            int totalPendentes = await _context.Vocabularies.CountAsync(v => !idsProcessados.Contains(v.Id));
+            int totalGeral = await _context.Vocabularies.CountAsync();
+
+            if (!loteVocabulario.Any())
             {
-                TempData["Erro"] = "Por favor, selecione um arquivo JMdict.xml.";
-                return RedirectToAction("Index");
+                return Json(new { finalizado = true, mensagem = "Processo concluído!", progresso = 100 });
             }
 
-            var filePath = Path.Combine(Path.GetTempPath(), xmlFile.FileName);
+            int processadosNoLote = 0;
+            var logItens = new List<string>();
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            using (var client = new HttpClient())
             {
-                await xmlFile.CopyToAsync(stream);
-            }
+                client.DefaultRequestHeaders.Add("User-Agent", "DenkiishiApp/2.0");
+                client.Timeout = TimeSpan.FromSeconds(60);
 
-            try
-            {
-                await _vocabularyImportService.ImportToStagingAsync(filePath);
-                TempData["Sucesso"] = "Dicionário importado para a tabela matriz com sucesso!";
-            }
-            catch (Exception ex)
-            {
-                TempData["Erro"] = "Erro ao processar XML: " + ex.Message;
-            }
-            finally
-            {
-                if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath);
-            }
-
-            return RedirectToAction("Index");
-        }
-
-        // --- SEÇÃO de KANJIS (Tanos/David Luz) ---
-
-        [HttpPost]
-        public async Task<IActionResult> ImportarTanos(IFormFile arquivoJson)
-        {
-            if (arquivoJson == null || arquivoJson.Length == 0)
-                return BadRequest("Por favor, selecione um arquivo JSON válido.");
-
-            using var stream = new StreamReader(arquivoJson.OpenReadStream());
-            var conteudoJson = await stream.ReadToEndAsync();
-
-            Dictionary<string, DavidLuzKanjiDto>? dadosImportacao;
-            try
-            {
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                dadosImportacao = JsonSerializer.Deserialize<Dictionary<string, DavidLuzKanjiDto>>(conteudoJson, options);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest($"Erro ao ler o JSON: {ex.Message}");
-            }
-
-            if (dadosImportacao == null || !dadosImportacao.Any())
-                return BadRequest("O JSON está vazio.");
-
-            var categoriaJlpt = await GarantirCategoriaMestre("JLPT", "Japanese Language Proficiency Test");
-            int idLanguageEn = 1;
-
-            int adicionados = 0;
-            int atualizados = 0;
-
-            foreach (var entry in dadosImportacao)
-            {
-                string literal = entry.Key;
-                var dados = entry.Value;
-                string? nivelJlpt = dados.JlptNew.HasValue ? $"N{dados.JlptNew}" : null;
-
-                var kanjiExistente = await _context.Kanjis.FirstOrDefaultAsync(k => k.Literal == literal);
-
-                if (kanjiExistente == null)
+                foreach (var vocab in loteVocabulario)
                 {
-                    var novoKanji = new Kanji
-                    {
-                        Literal = literal,
-                        UnicodeCode = char.ConvertToUtf32(literal, 0).ToString("X4"),
-                        StrokeCount = (short)dados.Strokes,
-                        GradeLevel = (short?)dados.Grade,
-                        FrequencyRank = dados.Freq,
-                        IsActive = true
-                    };
-                    _context.Kanjis.Add(novoKanji);
-                    await _context.SaveChangesAsync();
+                    // Limpa o ChangeTracker para não acumular lixo de erros anteriores
+                    _context.ChangeTracker.Clear();
 
-                    if (nivelJlpt != null) await VincularCategoria(novoKanji.Id, categoriaJlpt.Id, nivelJlpt);
-
-                    if (dados.Meanings != null)
+                    try
                     {
-                        foreach (var m in dados.Meanings)
-                            await _context.Database.ExecuteSqlRawAsync("INSERT INTO kanji_meaning (kanji_id, gloss, id_language) VALUES ({0}, {1}, {2})", novoKanji.Id, m, idLanguageEn);
+                        string url = $"https://jisho.org/api/v1/search/words?keyword={vocab.Characters}";
+                        var response = await client.GetAsync(url);
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var jsonString = await response.Content.ReadAsStringAsync();
+                            var jishoResult = JsonSerializer.Deserialize<JishoRoot>(jsonString);
+                            var itemDados = jishoResult?.Data?.FirstOrDefault();
+
+                            var tiposParaVincular = new List<string>();
+
+                            if (itemDados != null && itemDados.Senses != null)
+                            {
+                                var encontrados = itemDados.Senses
+                                    .Where(s => s.PartsOfSpeech != null)
+                                    .SelectMany(s => s.PartsOfSpeech)
+                                    .Distinct()
+                                    .ToList();
+
+                                tiposParaVincular.AddRange(encontrados);
+                            }
+
+                            if (!tiposParaVincular.Any()) tiposParaVincular.Add("Unclassified");
+
+                            // --- LÓGICA BLINDADA DE SALVAMENTO ---
+                            foreach (var posName in tiposParaVincular)
+                            {
+                                if (string.IsNullOrWhiteSpace(posName)) continue;
+
+                                try
+                                {
+                                    // 1. Garante que o TIPO existe
+                                    var tipoBanco = await _context.VocabularyPartsOfSpeech
+                                        .FirstOrDefaultAsync(p => p.Name == posName);
+
+                                    if (tipoBanco == null)
+                                    {
+                                        tipoBanco = new VocabularyPartOfSpeech { Name = posName };
+                                        _context.VocabularyPartsOfSpeech.Add(tipoBanco);
+                                        await _context.SaveChangesAsync(); // Salva IMEDIATAMENTE para ter o ID
+                                    }
+
+                                    // 2. Garante que o VÍNCULO não existe
+                                    // Importante: Usar AsNoTracking() na verificação para evitar conflito de tracking
+                                    var existeVinculo = await _context.VocabularyPartsOfSpeechMaps
+                                        .AsNoTracking()
+                                        .AnyAsync(m => m.VocabularyId == vocab.Id && m.VocabularyPartOfSpeechId == tipoBanco.Id);
+
+                                    if (!existeVinculo)
+                                    {
+                                        var novoMapa = new VocabularyPartOfSpeechMap
+                                        {
+                                            VocabularyId = vocab.Id,
+                                            VocabularyPartOfSpeechId = tipoBanco.Id
+                                        };
+                                        _context.VocabularyPartsOfSpeechMaps.Add(novoMapa);
+                                        await _context.SaveChangesAsync(); // Salva o vínculo um por um
+                                    }
+                                }
+                                catch (Exception dbEx)
+                                {
+                                    // Captura o erro real do banco (InnerException)
+                                    string erroReal = dbEx.InnerException?.Message ?? dbEx.Message;
+                                    logItens.Add($"[ERRO DB] '{vocab.Characters}' ({posName}): {erroReal}");
+                                }
+                            }
+
+                            processadosNoLote++;
+                            logItens.Add($"[OK] {vocab.Characters} -> {string.Join(", ", tiposParaVincular)}");
+
+                            // Pausa saudável: 1.5s
+                            await Task.Delay(1500);
+                        }
+                        else if ((int)response.StatusCode == 429) // Too Many Requests
+                        {
+                            logItens.Add($"[429 - CALMA] O Jisho pediu pausa. Esperando 10s...");
+                            await Task.Delay(10000); // Espera 10 segundos
+                        }
+                        else
+                        {
+                            logItens.Add($"[ERRO API] {vocab.Characters}: {response.StatusCode}");
+                        }
                     }
-                    adicionados++;
-                }
-                else
-                {
-                    // Lógica de Update omitida por brevidade, mas mantida no seu original
-                    atualizados++;
+                    catch (Exception ex)
+                    {
+                        logItens.Add($"[FALHA GERAL] {vocab.Characters}: {ex.Message}");
+                    }
                 }
             }
 
-            await _context.SaveChangesAsync();
-            TempData["Sucesso"] = $"Processamento Concluído! {adicionados} novos Kanjis, {atualizados} atualizados.";
-            return RedirectToAction("Index");
-        }
+            int restantes = totalPendentes - processadosNoLote;
+            double porcentagem = totalGeral > 0 ? (double)(totalGeral - restantes) / totalGeral * 100 : 0;
 
-        [HttpPost]
-        public async Task<IActionResult> GerarScriptSql(IFormFile arquivoJson)
-        {
-            if (arquivoJson == null || arquivoJson.Length == 0) return BadRequest("Arquivo inválido.");
-            using var stream = new StreamReader(arquivoJson.OpenReadStream());
-            var conteudo = await stream.ReadToEndAsync();
-            var dados = JsonSerializer.Deserialize<Dictionary<string, object>>(conteudo);
-            if (dados == null) return BadRequest();
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"-- Script Gerado: {DateTime.Now}");
-            var listaFormatada = string.Join("', '", dados.Keys);
-            sb.AppendLine($"UPDATE kanji SET is_active = true WHERE literal IN ('{listaFormatada}');");
-
-            return File(Encoding.UTF8.GetBytes(sb.ToString()), "application/sql", "Update_Kanjis.sql");
-        }
-
-        private async Task<Category> GarantirCategoriaMestre(string nome, string descricao)
-        {
-            var cat = await _context.Categories.FirstOrDefaultAsync(c => c.Name == nome);
-            if (cat == null)
+            return Json(new
             {
-                cat = new Category { Name = nome, Description = descricao };
-                _context.Categories.Add(cat);
-                await _context.SaveChangesAsync();
-            }
-            return cat;
+                finalizado = false,
+                processados = processadosNoLote,
+                restantes = restantes,
+                total = totalGeral,
+                progresso = Math.Round(porcentagem, 2),
+                log = logItens
+            });
         }
+    }
 
-        private async Task VincularCategoria(int kanjiId, int catId, string levelName)
-        {
-            _context.KanjiCategoryMaps.Add(new KanjiCategoryMap { KanjiId = kanjiId, CategoryId = catId, CategoryLevel = levelName, InclDate = DateTime.UtcNow });
-        }
+    // --- CLASSES AUXILIARES PARA LER O JSON DO JISHO ---
+    // Estrutura baseada em: https://jisho.org/api/v1/search/words?keyword=一人
+
+    public class JishoRoot
+    {
+        [JsonPropertyName("meta")]
+        public JishoMeta Meta { get; set; }
+
+        [JsonPropertyName("data")]
+        public List<JishoData> Data { get; set; }
+    }
+
+    public class JishoMeta
+    {
+        [JsonPropertyName("status")]
+        public int Status { get; set; }
+    }
+
+    public class JishoData
+    {
+        [JsonPropertyName("slug")]
+        public string Slug { get; set; }
+
+        [JsonPropertyName("senses")]
+        public List<JishoSense> Senses { get; set; }
+    }
+
+    public class JishoSense
+    {
+        [JsonPropertyName("english_definitions")]
+        public List<string> EnglishDefinitions { get; set; }
+
+        [JsonPropertyName("parts_of_speech")]
+        public List<string> PartsOfSpeech { get; set; }
     }
 }

@@ -24,6 +24,7 @@ namespace Denkiishi_v2.Models
         public int LinguaSelecionadaId { get; set; }
         public List<SelectListItem> LinguasDisponiveis { get; set; } = new List<SelectListItem>();
         public string NovasPalavrasJson { get; set; }
+        public bool TemHistoria { get; set; }
     }
 
     // --- NOVO: DTO para transportar os dados da categoria ---
