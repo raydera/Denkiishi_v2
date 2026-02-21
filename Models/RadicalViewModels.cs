@@ -1,19 +1,16 @@
-﻿using System.Collections.Generic;
-using Microsoft.AspNetCore.Mvc.Rendering;
+﻿using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Collections.Generic;
 
 namespace Denkiishi_v2.Models
 {
-    // ViewModel para a tela Index (O Mapa de Radicais)
     public class RadicalGeralViewModel
     {
+        public Dictionary<int, List<RadicalStatusDto>> RadicaisPorTracos { get; set; }
         public int LinguaSelecionadaId { get; set; }
-        public List<SelectListItem> LinguasDisponiveis { get; set; } = new List<SelectListItem>();
-
-        // AQUI ESTÁ A MUDANÇA: Dicionário de <Traços, Lista de Radicais>
-        public Dictionary<int, List<RadicalStatusDto>> RadicaisPorTracos { get; set; } = new Dictionary<int, List<RadicalStatusDto>>();
+        public List<SelectListItem> LinguasDisponiveis { get; set; }
+        public int CategoriaSelecionadaId { get; set; }
     }
 
-    // DTO para os botões da tela principal
     public class RadicalStatusDto
     {
         public int Id { get; set; }
@@ -22,16 +19,40 @@ namespace Denkiishi_v2.Models
         public string SearchText { get; set; }
     }
 
-    // ViewModel para o Modal (Detalhes do Radical)
+    // --- VIEWMODEL DO MODAL ---
     public class RadicalDetalhesViewModel
     {
-        public int RadicalId { get; set; } // Nome correto
+        public int RadicalId { get; set; }
         public string Caractere { get; set; }
-        public string InfoTraços { get; set; } // Em vez de LeituraOnyomi
+        public string InfoTraços { get; set; }
 
-        // Para o CRUD
+        public List<RadicalGrupoTraducaoDto> TraducoesAgrupadas { get; set; } = new();
+        public List<SelectListItem> LinguasDisponiveis { get; set; } = new();
         public int LinguaSelecionadaId { get; set; }
-        public List<SelectListItem> LinguasDisponiveis { get; set; } = new List<SelectListItem>();
-        public List<GrupoTraducaoDto> TraducoesAgrupadas { get; set; } = new List<GrupoTraducaoDto>();
+
+        public List<KanjiDto> KanjisRelacionados { get; set; } = new();
+        public List<SyntaxHighlight> ListaSyntax { get; set; } = new();
+    }
+
+    public class RadicalGrupoTraducaoDto
+    {
+        public string Lingua { get; set; }
+        public List<RadicalSignificadoDto> Significados { get; set; }
+    }
+
+    public class RadicalSignificadoDto
+    {
+        public int Id { get; set; }
+        public string Texto { get; set; }
+        public bool IsPrincipal { get; set; }
+        public bool TemHistoria { get; set; }
+    }
+
+    // --- ADICIONE ESTA CLASSE AQUI ---
+    public class KanjiDto
+    {
+        public int Id { get; set; }
+        public string Literal { get; set; }
+        public int Nivel { get; set; }
     }
 }

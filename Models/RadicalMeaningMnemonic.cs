@@ -1,17 +1,18 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Denkiishi_v2.Models
 {
-    [Table("kanji_meaning_mnemonic")]
-    public class KanjiMeaningMnemonic
+    [Table("radical_meaning_mnemonic")]
+    public class RadicalMeaningMnemonic
     {
         [Key]
         [Column("id")]
         public int Id { get; set; }
 
-        [Column("kanji_meaning_id")]
-        public int KanjiMeaningId { get; set; }
+        [Column("radical_meaning_id")]
+        public int RadicalMeaningId { get; set; }
 
         [Column("text")]
         public string Text { get; set; }
@@ -25,8 +26,7 @@ namespace Denkiishi_v2.Models
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // Relacionamento (opcional por enquanto, mas bom ter)
-        [ForeignKey("KanjiMeaningId")]
-        public virtual KanjiMeaning KanjiMeaning { get; set; }
+        [ForeignKey("RadicalMeaningId")]
+        public virtual RadicalMeaning RadicalMeaning { get; set; }
     }
 }

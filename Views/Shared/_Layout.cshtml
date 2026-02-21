@@ -78,6 +78,14 @@
                                 <li><a class="dropdown-item" href="#"><i class="fa fa-chart-line text-muted me-2"></i> Estatísticas</a></li>
                             </ul>
                         </li>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-controller="SyntaxHighlight" asp-action="Index">
+                                    <i class="fa fa-paint-brush"></i> Estilos (Tags)
+                                </a>
+                            </li>
+                        }
                     </ul>
                     <partial name="_LoginPartial" />
 
@@ -103,5 +111,94 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+
+    @if (User.Identity.IsAuthenticated && User.Identity.Name == "rayderaguiar@gmail")
+    {
+        <div id="sakura-container"></div>
+
+        <style>
+            /* Container que cobre a tela sem bloquear cliques */
+            #sakura-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none; /* O segredo: deixa clicar através da animação */
+                z-index: 9999;
+                overflow: hidden;
+            }
+
+            .sakura {
+                position: absolute;
+                background-color: #ffc0cb; /* Rosa Sakura */
+                border-radius: 100% 0 100% 0; /* Formato de pétala */
+                opacity: 0.8;
+                animation: fall linear forwards;
+            }
+
+            @@keyframes fall {
+                0% {
+                    top: -10%;
+                    transform: translateX(0) rotate(0deg);
+                    opacity: 0;
+                }
+
+                10% {
+                    opacity: 1;
+                }
+
+                100% {
+                    top: 110%;
+                    transform: translateX(200px) rotate(360deg); /* Cai para o lado girando */
+                    opacity: 0;
+                }
+            }
+        </style>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const container = document.getElementById('sakura-container');
+                const totalPetalas = 30; // Quantidade de pétalas
+
+                // Função para criar uma pétala
+                function criarPetala() {
+                    const el = document.createElement('div');
+                    el.classList.add('sakura');
+
+                    // Tamanhos aleatórios
+                    const size = Math.random() * 15 + 10 + 'px';
+                    el.style.width = size;
+                    el.style.height = size;
+
+                    // Posição horizontal aleatória
+                    el.style.left = Math.random() * 100 + 'vw';
+
+                    // Duração da queda aleatória (entre 4s e 10s)
+                    const duration = Math.random() * 6 + 4 + 's';
+                    el.style.animationDuration = duration;
+
+                    // Atraso aleatório para não caírem todas juntas
+                    el.style.animationDelay = Math.random() * 5 + 's';
+
+                    container.appendChild(el);
+
+                    // Remove do DOM quando a animação acabar para não pesar a memória
+                    setTimeout(() => {
+                        el.remove();
+                    }, parseFloat(duration) * 1000 + 5000);
+                }
+
+                // Inicia a chuva
+                for(let i=0; i<totalPetalas; i++) {
+                    criarPetala();
+                }
+
+                // Opcional: Continuar criando pétalas periodicamente
+                // setInterval(criarPetala, 500);
+            });
+        </script>
+    }
+
 </body>
 </html>

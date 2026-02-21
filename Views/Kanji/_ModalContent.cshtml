@@ -20,21 +20,76 @@
 
             <div class="modal-slide p-3" id="slideDetalhes">
                 <div class="row">
-                    <div class="col-md-5">
-                        <div class="card shadow-sm text-center mb-3">
-                            <div class="card-body">
-                                <h1 class="display-3 fw-bold text-dark mb-0">@Model.Caractere</h1>
-                                <div class="d-flex align-items-center justify-content-center gap-2 mt-1">
-                                    <p class="fs-4 text-muted mb-0">@Model.LeituraOnyomi</p>
-                                    @if (!string.IsNullOrEmpty(Model.LeituraOnyomi))
-                                    {
-                                        <button onclick="falarJapones('@Model.LeituraOnyomi')" class="btn btn-light text-secondary btn-sm rounded-circle border shadow-sm" style="width: 32px; height: 32px;"><i class="fa fa-volume-up"></i></button>
-                                    }
-                                </div>
-                                <small class="text-secondary">(Onyomi)</small>
-                            </div>
-                        </div>
-                    </div>
+                   <div class="col-md-5">
+   <div class="card shadow-sm text-center mb-3 badge-clickable" 
+     onclick="abrirPainelReadings()" 
+     title="Clique para gerenciar Readings"
+     style="cursor: pointer; transition: transform 0.2s;">
+        <div class="card-body">
+            <h1 class="display-3 fw-bold text-dark mb-0">@Model.Caractere</h1>
+            <div class="d-flex align-items-center justify-content-center gap-2 mt-1">
+                <p class="fs-4 text-muted mb-0">@Model.LeituraOnyomi</p>
+
+                @if (!string.IsNullOrEmpty(Model.LeituraOnyomi))
+                {
+                    <button onclick="falarJapones('@Model.LeituraOnyomi')"
+                            class="btn btn-light text-secondary btn-sm rounded-circle border shadow-sm"
+                            title="Ouvir Pronúncia (Onyomi)"
+                            style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fa fa-volume-up"></i>
+                    </button>
+                }
+            </div>
+            <small class="text-secondary">(Onyomi)</small>
+        </div>
+    </div>
+
+    <div class="card mb-3 shadow-sm">
+        <div class="card-header bg-white py-1"><small class="fw-bold text-muted">Similares</small></div>
+        <div class="card-body p-2">
+            <div class="d-flex flex-wrap gap-2 justify-content-center">
+                @if (Model.KanjisSimilares != null && Model.KanjisSimilares.Any())
+                {
+                    @foreach (var similar in Model.KanjisSimilares)
+                    {
+                        <a asp-controller="Kanji" asp-action="Detalhes" asp-route-id="@similar.Id"
+                           class="btn btn-outline-secondary d-flex flex-column align-items-center p-1 text-decoration-none"
+                           style="width: 60px; height: 60px;">
+                            <span class="h5 d-block mb-0 text-dark">@similar.Caractere</span>
+                            <small class="text-muted" style="font-size: 0.6rem;">@similar.Nome</small>
+                        </a>
+                    }
+                }
+                else
+                {
+                    <span class="text-muted small">Nenhum similar encontrado.</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-1"><small class="fw-bold text-muted">Radicais</small></div>
+        <div class="card-body p-2">
+            <ul class="list-unstyled mb-0">
+                @if (Model.Radicais != null && Model.Radicais.Any())
+                {
+                    @foreach (var radical in Model.Radicais)
+                    {
+                        <li class="mb-1 d-flex align-items-center">
+                            <span class="badge bg-secondary me-2">@radical.Caractere</span>
+                            <small class="text-muted text-truncate" style="max-width: 150px;">@radical.Descricao</small>
+                        </li>
+                    }
+                }
+                else
+                {
+                    <li class="text-muted small">Nenhum radical info.</li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
 
                     <div class="col-md-7">
                         <div class="card mb-3 shadow-sm">
@@ -100,13 +155,35 @@
                     <div style="width: 70px;"></div>
                 </div>
                 <div class="mb-3">
-                    <div class="syntax-toolbar">
-                        <button type="button" class="btn btn-sm btn-white border fw-bold" style="color: #dc3545;" onclick="inserirTagEditor('v')" title="Verbo">Verbo</button>
-                        <button type="button" class="btn btn-sm btn-white border fw-bold" style="color: #0d6efd;" onclick="inserirTagEditor('n')" title="Substantivo">Subst.</button>
-                        <button type="button" class="btn btn-sm btn-white border fw-bold fst-italic" style="color: #198754;" onclick="inserirTagEditor('adj')" title="Adjetivo">Adj.</button>
-                        <button type="button" class="btn btn-sm btn-white border" style="background-color: #ffc107;" onclick="inserirTagEditor('mark')" title="Destaque">Mark</button>
+                    <div class="syntax-toolbar d-flex flex-wrap gap-1 p-2 bg-light border rounded-top">
+                        <span class="small text-muted align-self-center me-2">Tags:</span>
+
+                        @if (Model.ListaSyntax != null)
+                        {
+                            foreach (var item in Model.ListaSyntax)
+                            {
+                                // Monta o CSS inline dinamicamente baseado nas colunas do banco
+                                string estiloBtn = "border: 1px solid #ced4da;";
+                                if (!string.IsNullOrEmpty(item.TextColor)) estiloBtn += $"color: {item.TextColor};";
+                                if (!string.IsNullOrEmpty(item.BackgroundColor)) estiloBtn += $"background-color: {item.BackgroundColor}; border-color: {item.BackgroundColor};";
+                                if (item.IsBold) estiloBtn += "font-weight: bold;";
+                                if (item.IsItalic) estiloBtn += "font-style: italic;";
+                                if (item.IsUnderline) estiloBtn += "text-decoration: underline;";
+
+                                <button type="button"
+                                        class="btn btn-sm btn-white"
+                                        style="@estiloBtn"
+                                        onclick="inserirTagEditor('@item.Code')"
+                                        title="@item.Description">
+                                    @item.Code
+                                </button>
+                            }
+                        }
                     </div>
-                    <textarea id="txtEditorHistoria" class="form-control editor-textarea" placeholder="Ex: Imagine alguém que..." oninput="atualizarPreviewEditor()"></textarea>
+
+                    <textarea id="txtEditorHistoria" class="form-control editor-textarea"
+                              placeholder="Ex: Imagine alguém que..."
+                              oninput="atualizarPreviewEditor()"></textarea>
                 </div>
                 <div class="card bg-light border-0 mb-3">
                     <div class="card-body py-2">
@@ -116,7 +193,92 @@
                 </div>
                 <div class="d-grid"><button type="button" class="btn btn-success" onclick="salvarHistoriaBackend()"><i class="fa fa-save"></i> Salvar História</button></div>
             </div>
+           <div class="modal-slide p-3 bg-white" id="slideReadings">
+    <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="voltarParaDetalhes()">
+            <i class="fa fa-arrow-left"></i> Voltar
+        </button>
+        <h5 class="m-0 fw-bold text-dark">Gerenciar Leituras</h5>
+        <div style="width: 70px;"></div>
+    </div>
 
+    <div class="row">
+        <div class="col-4 border-end" style="max-height: 400px; overflow-y: auto;">
+            <div class="list-group list-group-flush" id="listaReadings">
+                @foreach (var r in Model.ListaReadings)
+                {
+                    // ID dinâmico para manipularmos via JS depois (ex: btn-reading-15)
+                    <button type="button" id="btn-reading-@r.Id"
+                            class="list-group-item list-group-item-action py-3 position-relative" 
+                            onclick="selecionarReading(@r.Id, '@r.Type', '@r.Kana', @(r.TemHistoria ? "true" : "false"), @(r.IsPrincipal ? "true" : "false"))">
+                        
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <h5 class="mb-1 fw-bold text-primary">@r.Kana</h5>
+                            
+                            <i class="fa fa-star text-warning icon-star" style="display: @(r.IsPrincipal ? "block" : "none");" title="Leitura Principal"></i>
+                        </div>
+                        
+                        <p class="mb-1 small text-muted text-uppercase">@r.Type</p>
+                        
+                        <div class="icon-book text-success small" style="display: @(r.TemHistoria ? "block" : "none");">
+                            <i class="fa fa-book-open"></i> História criada
+                        </div>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="col-8">
+            <div id="areaEdicaoReading" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="text-primary fw-bold m-0">
+                        Editando: <span id="lblReadingSelecionado" class="text-dark display-6 fs-4">---</span>
+                        <span class="badge bg-secondary ms-2 align-middle" id="lblReadingType">---</span>
+                    </h6>
+                    <button id="btnExcluirReading" class="btn btn-outline-danger btn-sm" onclick="excluirHistoriaReading()" style="display:none;">
+                        <i class="fa fa-trash"></i> Excluir
+                    </button>
+                </div>
+
+                <div class="syntax-toolbar d-flex flex-wrap gap-1 p-2 bg-light border rounded-top">
+                    @if (Model.ListaSyntax != null)
+                    {
+                        foreach (var item in Model.ListaSyntax)
+                        {
+                            string style = $"color:{item.TextColor};";
+                            if (!string.IsNullOrEmpty(item.BackgroundColor)) style += $"background-color:{item.BackgroundColor};";
+                            <button type="button" class="btn btn-sm btn-white border" style="@style"
+                                    onclick="inserirTagReading('@item.Code')">@item.Code</button>
+                        }
+                    }
+                </div>
+
+                <input type="hidden" id="hdnReadingId" />
+                <textarea id="txtEditorReading" class="form-control editor-textarea" 
+                          placeholder="Crie um mnemônico para a leitura..." 
+                          oninput="atualizarPreviewReading()"></textarea>
+
+                <div class="card bg-light border-0 my-3">
+                    <div class="card-body py-2">
+                        <small class="text-muted fw-bold">Preview:</small>
+                        <div id="divPreviewReading" class="mt-1 fs-5" style="min-height: 30px;"></div>
+                    </div>
+                </div>
+
+                <div class="d-grid">
+                    <button id="btnSalvarReading" class="btn btn-success" onclick="salvarReadingBackend()">
+                        <i class="fa fa-save"></i> Salvar & Definir como Principal
+                    </button>
+                </div>
+            </div>
+            
+            <div id="msgSelecioneReading" class="text-center text-muted mt-5">
+                <i class="fa fa-hand-point-left fa-3x mb-3 text-secondary opacity-25"></i>
+                <p>Selecione uma leitura para editar.</p>
+            </div>
+        </div>
+    </div>
+</div>
         </div>
     </div>
 </div>
@@ -135,3 +297,11 @@
         </div>
     </div>
 </div>
+<input type="hidden" id="dadosSyntaxHighlight" value='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ListaSyntax.Select(s => new { 
+    code = s.Code, 
+    textColor = s.TextColor, 
+    bgColor = s.BackgroundColor, 
+    bold = s.IsBold, 
+    italic = s.IsItalic, 
+    underline = s.IsUnderline 
+})))' />

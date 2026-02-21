@@ -99,7 +99,7 @@ namespace Denkiishi_v2.Controllers
 
             // Retorna a PartialView que contém o Modal Deslizante
             // Certifique-se que o nome do arquivo cshtml está correto (ex: "_ModalContent" ou "DetalhesModal")
-            return PartialView("DetalhesModal", model);
+            return PartialView("_ModalContent", model);
         }
 
         // ==========================================================
@@ -113,25 +113,33 @@ namespace Denkiishi_v2.Controllers
             return View("Detalhes", model);
         }
 
+   
         // ==========================================================
-        // 4. SALVAR HISTÓRIA (NOVO MÉTODO BACKEND)
+        // 4. SALVAR HISTÓRIA (ENDPOINT REAL)
         // ==========================================================
         [HttpPost]
         public async Task<IActionResult> SalvarHistoriaMeaning([FromBody] SalvarHistoriaRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.Texto))
-                return BadRequest("Texto inválido.");
+            if (request == null || request.MeaningId <= 0)
+                return BadRequest("Dados inválidos.");
+
+            if (string.IsNullOrWhiteSpace(request.Texto))
+                return BadRequest("O texto da história não pode estar vazio.");
 
             try
             {
-                // 1. Desativar histórias antigas (Versionamento)
+                // 1. Versionamento: Desativar histórias antigas
                 var historiasAntigas = await _context.KanjiMeaningMnemonics
                     .Where(m => m.KanjiMeaningId == request.MeaningId && m.IsActive)
                     .ToListAsync();
 
-                foreach (var h in historiasAntigas)
+                if (historiasAntigas.Any())
                 {
-                    h.IsActive = false;
+                    foreach (var h in historiasAntigas)
+                    {
+                        h.IsActive = false;
+                        h.UpdatedAt = DateTime.UtcNow; // FORÇA UTC
+                    }
                 }
 
                 // 2. Criar nova história
@@ -140,28 +148,37 @@ namespace Denkiishi_v2.Controllers
                     KanjiMeaningId = request.MeaningId,
                     Text = request.Texto,
                     IsActive = true,
-                    CreatedAt = DateTime.Now,
-                    UpdatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow, // FORÇA UTC
+                    UpdatedAt = DateTime.UtcNow  // FORÇA UTC
                 };
 
                 _context.KanjiMeaningMnemonics.Add(novaHistoria);
+
+                // 3. Commit no Banco
                 await _context.SaveChangesAsync();
 
                 return Ok(new { mensagem = "História salva com sucesso!" });
             }
+            catch (DbUpdateException dbEx)
+            {
+                // Captura erros específicos de banco de dados e pega a mensagem interna
+                var erroReal = dbEx.InnerException != null ? dbEx.InnerException.Message : dbEx.Message;
+                return StatusCode(500, $"Erro de Banco: {erroReal}");
+            }
             catch (Exception ex)
             {
-                return StatusCode(500, $"Erro ao salvar: {ex.Message}");
+                // Captura outros erros genéricos
+                var erroReal = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return StatusCode(500, $"Erro Interno: {erroReal}");
             }
         }
 
-        // Classe auxiliar para receber o JSON do Front
+        // Classe DTO para receber o JSON do JavaScript
         public class SalvarHistoriaRequest
         {
             public int MeaningId { get; set; }
             public string Texto { get; set; }
         }
-
         // ==========================================================
         // MÉTODO AUXILIAR (Monta os dados e verifica se tem história)
         // ==========================================================
@@ -188,6 +205,13 @@ namespace Denkiishi_v2.Controllers
                 .Select(m => m.KanjiMeaningId)
                 .ToListAsync();
 
+            // Buscar IDs de Readings que têm história ativa
+            var idsReadingsDoKanji = kanji.KanjiReadings.Select(r => r.Id).ToList();
+            var readingsComHistoria = await _context.KanjiReadingMnemonics
+                .Where(rm => idsReadingsDoKanji.Contains(rm.KanjiReadingId) && rm.IsActive)
+                .Select(rm => rm.KanjiReadingId)
+                .ToListAsync();
+
             var model = new KanjiDetalhesViewModel
             {
                 KanjiId = kanji.Id,
@@ -208,6 +232,12 @@ namespace Denkiishi_v2.Controllers
                     return new KanjiSimilarDto { Id = sim.Id, Caractere = sim.Literal, Nome = sig };
                 }).Where(x => x != null).ToList(),
 
+                // --- NOVO: Carregar a lista de estilos para a Toolbar ---
+                ListaSyntax = await _context.SyntaxHighlights
+                                    .AsNoTracking() // Performance: apenas leitura
+                                    .OrderBy(x => x.Code)
+                                    .ToListAsync(),
+
                 // AQUI ESTÁ A LÓGICA CORRIGIDA E INTEGRADA
                 TraducoesAgrupadas = kanji.KanjiMeanings
                     .Where(m => m.IdLanguageNavigation != null)
@@ -223,7 +253,19 @@ namespace Denkiishi_v2.Controllers
                             // Verifica se este ID está na lista de quem tem história
                             TemHistoria = meaningsComHistoria.Contains(m.Id)
                         }).ToList()
-                    }).ToList()
+                    }).ToList(),
+
+                // --- NOVO: Preencher a lista de Readings ---
+                ListaReadings = kanji.KanjiReadings.Select(r => new ReadingDto
+                    {
+                        Id = r.Id,
+                        Type = r.Type, // onyomi/kunyomi
+                        Kana = r.ReadingKana,
+                        Romaji = r.ReadingRomaji, // Assumindo que existe essa coluna, senão remova
+                        IsPrincipal = r.IsPrincipal ?? false,
+                        TemHistoria = readingsComHistoria.Contains(r.Id)
+                    }).OrderBy(r => r.Type).ThenBy(r => r.Kana).ToList()
+
             };
 
             var linguasDb = await _context.Language.Where(l => l.IsActive == true).OrderBy(l => l.Description).ToListAsync();
@@ -236,6 +278,7 @@ namespace Denkiishi_v2.Controllers
 
             var sel = model.LinguasDisponiveis.FirstOrDefault(x => x.Selected) ?? model.LinguasDisponiveis.FirstOrDefault();
             if (sel != null) model.LinguaSelecionadaId = int.Parse(sel.Value);
+
 
             return model;
         }
@@ -290,5 +333,119 @@ namespace Denkiishi_v2.Controllers
             }
             catch (Exception ex) { return BadRequest(ex.Message); }
         }
+        // ==========================================================
+        // 6. CARREGAR HISTÓRIA (NOVO ENDPOINT)
+        // ==========================================================
+        [HttpGet]
+        public async Task<IActionResult> GetHistoria(int meaningId)
+        {
+            // Busca a história ativa para este significado
+            var historia = await _context.KanjiMeaningMnemonics
+                .AsNoTracking()
+                .Where(m => m.KanjiMeaningId == meaningId && m.IsActive)
+                .Select(m => m.Text)
+                .FirstOrDefaultAsync();
+
+            // Retorna o texto (ou vazio se não achar)
+            return Ok(new { texto = historia ?? "" });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SalvarHistoriaReading([FromBody] SalvarReadingRequest request)
+        {
+            if (request == null || request.ReadingId <= 0) return BadRequest("Dados inválidos.");
+            if (string.IsNullOrWhiteSpace(request.Texto)) return BadRequest("Texto vazio.");
+
+            try
+            {
+                // A. Atualizar flag IsPrincipal no Reading
+                var reading = await _context.KanjiReadings.FindAsync(request.ReadingId);
+                if (reading != null)
+                {
+                    // Opcional: Se quiser que só exista UM principal por Kanji, teria que resetar os outros antes
+                    // Por enquanto, vamos apenas marcar este como principal conforme solicitado
+                    reading.IsPrincipal = true;
+                    _context.Update(reading);
+                }
+
+                // B. Versionamento da História (Igual ao Meaning)
+                var antigas = await _context.KanjiReadingMnemonics
+                    .Where(x => x.KanjiReadingId == request.ReadingId && x.IsActive)
+                    .ToListAsync();
+
+                foreach (var a in antigas)
+                {
+                    a.IsActive = false;
+                    a.UpdatedAt = DateTime.UtcNow;
+                }
+
+                // C. Salvar Nova História
+                var nova = new KanjiReadingMnemonic
+                {
+                    KanjiReadingId = request.ReadingId,
+                    Text = request.Texto,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.KanjiReadingMnemonics.Add(nova);
+
+                await _context.SaveChangesAsync();
+                return Ok(new { mensagem = "Reading salvo com sucesso!" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erro: {ex.Message}");
+            }
+        }
+
+        // DTO Auxiliar
+        public class SalvarReadingRequest
+        {
+            public int ReadingId { get; set; }
+            public string Texto { get; set; }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetHistoriaReading(int readingId)
+        {
+            var historia = await _context.KanjiReadingMnemonics
+                .AsNoTracking()
+                .Where(x => x.KanjiReadingId == readingId && x.IsActive)
+                .Select(x => x.Text)
+                .FirstOrDefaultAsync();
+
+            return Ok(new { texto = historia ?? "" });
+        }
+
+        // ==========================================================
+        // 7. EXCLUIR HISTÓRIA DE READING
+        // ==========================================================
+        [HttpPost]
+        public async Task<IActionResult> ExcluirHistoriaReading(int readingId)
+        {
+            try
+            {
+                var historicasAtivas = await _context.KanjiReadingMnemonics
+                    .Where(x => x.KanjiReadingId == readingId && x.IsActive)
+                    .ToListAsync();
+
+                if (!historicasAtivas.Any()) return NotFound("Nenhuma história ativa encontrada.");
+
+                foreach (var h in historicasAtivas)
+                {
+                    h.IsActive = false; // Soft delete
+                    h.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { mensagem = "História removida." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erro: {ex.Message}");
+            }
+        }
+
     }
 }

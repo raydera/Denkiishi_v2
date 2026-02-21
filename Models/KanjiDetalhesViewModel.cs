@@ -25,6 +25,8 @@ namespace Denkiishi_v2.Models
         public List<SelectListItem> LinguasDisponiveis { get; set; } = new List<SelectListItem>();
         public string NovasPalavrasJson { get; set; }
         public bool TemHistoria { get; set; }
+        public List<SyntaxHighlight> ListaSyntax { get; set; } = new();
+        public List<ReadingDto> ListaReadings { get; set; } = new();
     }
 
     // --- NOVO: DTO para transportar os dados da categoria ---
@@ -58,6 +60,7 @@ namespace Denkiishi_v2.Models
         public int Id { get; set; }
         public string Texto { get; set; }
         public bool IsPrincipal { get; set; }
+        public bool TemHistoria { get; set; }
     }
 
     public class SalvarTraducaoRequest
@@ -72,4 +75,14 @@ namespace Denkiishi_v2.Models
         public string Texto { get; set; }
         public bool EhPrincipal { get; set; }
     }
+    public class ReadingDto
+    {
+        public int Id { get; set; }
+        public string Type { get; set; } // onyomi ou kunyomi
+        public string Kana { get; set; }
+        public string Romaji { get; set; }
+        public bool IsPrincipal { get; set; }
+        public bool TemHistoria { get; set; }
+    }
+
 }

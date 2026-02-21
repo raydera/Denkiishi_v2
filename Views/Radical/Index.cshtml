@@ -393,6 +393,172 @@
                  btnSim.disabled = false; btnSim.innerHTML = originalHtml;
              }
          }
+                 // Adicione dentro da section Scripts, logo após as funções existentes:
+
+        // ==========================================
+        // EDITOR DE HISTÓRIAS (RADICAL)
+        // ==========================================
+
+        async function abrirEditorHistoria(idMeaning, texto, lingua, temHistoria) {
+            document.getElementById('lblEditorTitulo').innerText = texto;
+            document.getElementById('lblEditorLingua').innerText = lingua;
+            document.getElementById('editorMeaningId').value = idMeaning;
+
+            const btnExcluir = document.getElementById('btnExcluirHistoria');
+            const spacer = document.getElementById('spacerHeader');
+            if(temHistoria) {
+                btnExcluir.style.display = 'block';
+                spacer.style.display = 'none';
+            } else {
+                btnExcluir.style.display = 'none';
+                spacer.style.display = 'block';
+            }
+
+            const footer = document.getElementById('modalFooterPadrao');
+            if(footer) { footer.classList.remove('d-flex'); footer.classList.add('d-none'); }
+
+            const txtArea = document.getElementById('txtEditorHistoria');
+            txtArea.value = "Carregando...";
+
+            // Slide (2 telas = 200% width -> -50% translate)
+            document.getElementById('sliderWrapper').style.transform = "translateX(-50%)";
+
+            if(temHistoria) {
+                try {
+                    const res = await fetch(`/Radical/GetHistoria?meaningId=${idMeaning}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        txtArea.value = data.texto;
+                    } else txtArea.value = "Erro.";
+                } catch { txtArea.value = "Erro."; }
+            } else {
+                txtArea.value = "";
+            }
+            setTimeout(atualizarPreviewEditor, 100);
+        }
+
+        function voltarParaDetalhes() {
+            document.getElementById('sliderWrapper').style.transform = "translateX(0)";
+            setTimeout(() => {
+                const footer = document.getElementById('modalFooterPadrao');
+                if(footer) { footer.classList.remove('d-none'); footer.classList.add('d-flex'); }
+            }, 300);
+        }
+
+        // Funções de Tag e Preview (São as mesmas do Kanji, se quiseres podes copiar de lá ou criar um arquivo .js separado)
+        function inserirTagEditor(tag) {
+            const txtArea = document.getElementById('txtEditorHistoria');
+            const start = txtArea.selectionStart;
+            const end = txtArea.selectionEnd;
+            const text = txtArea.value;
+            const selection = text.substring(start, end);
+            const content = selection.length > 0 ? selection : "texto";
+            const tagFull = `<${tag}>${content}</${tag}>`;
+            txtArea.value = text.substring(0, start) + tagFull + text.substring(end);
+            txtArea.focus();
+            atualizarPreviewEditor();
+        }
+
+        function atualizarPreviewEditor() {
+            const txtArea = document.getElementById('txtEditorHistoria');
+            if (!txtArea) return;
+            let raw = txtArea.value;
+            raw = raw.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            let formatted = raw.replace(/\n/g, '<br>');
+
+            let regras = [];
+            const inputRegras = document.getElementById('dadosSyntaxHighlight');
+            if (inputRegras) regras = JSON.parse(inputRegras.value);
+
+            if (regras) {
+                regras.forEach(rule => {
+                    let style = "";
+                    if (rule.textColor) style += `color:${rule.textColor};`;
+                    if (rule.bgColor) style += `background-color:${rule.bgColor}; padding: 0 2px; border-radius: 3px;`;
+                    if (rule.bold) style += "font-weight:bold;";
+                    if (rule.italic) style += "font-style:italic;";
+                    if (rule.underline) style += "text-decoration:underline;";
+                    const regex = new RegExp(`&lt;${rule.code}&gt;(.*?)&lt;/${rule.code}&gt;`, 'g');
+                    formatted = formatted.replace(regex, `<span style="${style}">$1</span>`);
+                });
+            }
+            document.getElementById('divEditorPreview').innerHTML = formatted;
+        }
+
+        async function salvarHistoriaBackend() {
+            const id = document.getElementById('editorMeaningId').value;
+            const texto = document.getElementById('txtEditorHistoria').value;
+            const btn = document.getElementById('btnSalvarHistoria');
+            const originalHtml = btn.innerHTML;
+
+            btn.disabled = true; btn.innerHTML = 'Salvando...';
+
+            try {
+                const res = await fetch('/Radical/SalvarHistoriaMeaning', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ MeaningId: parseInt(id), Texto: texto })
+                });
+
+                if (res.ok) {
+                    btn.innerHTML = 'Salvo!';
+                    btn.classList.remove('btn-success'); btn.classList.add('btn-dark');
+
+                    // Atualiza UI (Livro)
+                    atualizarBadgeNaLista(id, true);
+                    document.getElementById('btnExcluirHistoria').style.display = 'block';
+
+                    setTimeout(() => {
+                        btn.disabled = false; btn.innerHTML = originalHtml;
+                        btn.classList.add('btn-success'); btn.classList.remove('btn-dark');
+                        voltarParaDetalhes();
+                    }, 1000);
+                } else {
+                    alert("Erro ao salvar.");
+                    btn.disabled = false; btn.innerHTML = originalHtml;
+                }
+            } catch { btn.disabled = false; btn.innerHTML = originalHtml; }
+        }
+
+        async function excluirHistoriaBackend() {
+            if(!confirm("Excluir história?")) return;
+            const id = document.getElementById('editorMeaningId').value;
+
+            try {
+                const res = await fetch(`/Radical/ExcluirHistoriaMeaning?meaningId=${id}`, { method: 'POST' });
+                if(res.ok) {
+                    document.getElementById('txtEditorHistoria').value = "";
+                    atualizarPreviewEditor();
+                    document.getElementById('btnExcluirHistoria').style.display = 'none';
+                    atualizarBadgeNaLista(id, false);
+                    alert("História removida.");
+                } else alert("Erro.");
+            } catch { alert("Erro de rede."); }
+        }
+
+        function atualizarBadgeNaLista(id, temHistoria) {
+            const badges = document.querySelectorAll('.badge-clickable');
+            badges.forEach(b => {
+                if(b.onclick && b.onclick.toString().includes(id)) {
+                    let attr = b.getAttribute('onclick');
+                    if(temHistoria) attr = attr.replace(', "false")', ', "true")').replace(', false)', ', true)');
+                    else attr = attr.replace(', "true")', ', "false")').replace(', true)', ', false)');
+                    b.setAttribute('onclick', attr);
+
+                    const icon = b.querySelector('.fa-book-open');
+                    if(temHistoria) {
+                        if(!icon) {
+                            const i = document.createElement('i');
+                            i.className = 'fa fa-book-open text-info ms-1';
+                            const close = b.querySelector('.hover-delete');
+                            if(close) b.insertBefore(i, close); else b.appendChild(i);
+                        }
+                    } else {
+                        if(icon) icon.remove();
+                    }
+                }
+            });
+        }
     </script>
 }
 

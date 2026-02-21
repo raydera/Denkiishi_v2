@@ -3,15 +3,15 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Denkiishi_v2.Models
 {
-    [Table("kanji_meaning_mnemonic")]
-    public class KanjiMeaningMnemonic
+    [Table("kanji_reading_mnemonic")]
+    public class KanjiReadingMnemonic
     {
         [Key]
         [Column("id")]
         public int Id { get; set; }
 
-        [Column("kanji_meaning_id")]
-        public int KanjiMeaningId { get; set; }
+        [Column("kanji_reading_id")]
+        public int KanjiReadingId { get; set; }
 
         [Column("text")]
         public string Text { get; set; }
@@ -25,8 +25,7 @@ namespace Denkiishi_v2.Models
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // Relacionamento (opcional por enquanto, mas bom ter)
-        [ForeignKey("KanjiMeaningId")]
-        public virtual KanjiMeaning KanjiMeaning { get; set; }
+        [ForeignKey("KanjiReadingId")]
+        public virtual KanjiReading KanjiReading { get; set; }
     }
 }

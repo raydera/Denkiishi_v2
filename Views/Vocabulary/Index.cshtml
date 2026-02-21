@@ -1,0 +1,190 @@
+﻿@model Denkiishi_v2.Models.VocabularyGeralViewModel
+
+<div class="modal fade" id="modalTraducao" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" id="modalConteudoDinamico"></div>
+    </div>
+</div>
+
+<div class="container mt-4">
+    <div class="row align-items-center mb-4 border-bottom pb-3">
+        <div class="col-md-4">
+            <h2 class="text-vocab m-0 fw-bold"><i class="fa fa-book-open"></i> Vocabulário</h2>
+        </div>
+
+        <div class="col-md-3">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0"><i class="fa fa-search text-muted"></i></span>
+                <input type="text" id="inputBusca" class="form-control border-start-0" placeholder="Buscar palavra, kana ou significado..." onkeyup="filtrarVocab()">
+            </div>
+        </div>
+
+        <div class="col-md-5 text-end mt-2 mt-md-0">
+            <form asp-action="Index" method="get" class="d-inline-flex align-items-center gap-3">
+
+                <div class="d-flex align-items-center">
+                    <label class="me-2 fw-bold small text-muted"><i class="fa fa-filter"></i> Sistema:</label>
+                    <select name="categoriaId" asp-items="Model.CategoriasDisponiveis" class="form-select w-auto fw-bold text-vocab border-vocab" onchange="this.form.submit()"></select>
+                </div>
+
+                <div class="d-flex align-items-center">
+                    <label class="me-2 fw-bold small text-muted">Idioma:</label>
+                    <select name="linguaId" asp-items="Model.LinguasDisponiveis" class="form-select w-auto" onchange="this.form.submit()"></select>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    @if (!Model.VocabPorNivel.Any())
+    {
+        <div class="alert alert-light text-center border mt-5 py-5 text-muted">
+            <i class="fa fa-ghost fa-3x mb-3 opacity-25"></i>
+            <h5>Nenhum vocabulário cadastrado para esta categoria.</h5>
+        </div>
+    }
+
+    @foreach (var nivel in Model.VocabPorNivel)
+    {
+        // Se a Categoria selecionada for JLPT, podemos embelezar o nome
+        string nomeNivel = "Nível " + nivel.Key;
+        var catSelecionada = Model.CategoriasDisponiveis.FirstOrDefault(c => c.Selected)?.Text;
+        if (catSelecionada == "JLPT") nomeNivel = "JLPT N" + nivel.Key;
+
+        int total = nivel.Value.Count;
+        int traduzidos = nivel.Value.Count(v => v.TemTraducao);
+        int porcentagem = total > 0 ? (int)((double)traduzidos / total * 100) : 0;
+
+        <div class="card mb-4 shadow-sm vocab-section" id="section-v-@nivel.Key">
+            <div class="card-header bg-vocab text-white pb-3">
+                <div class="d-flex justify-content-between align-items-end mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <h4 class="m-0 fw-bold">@nomeNivel</h4>
+                        <span class="badge bg-white text-vocab rounded-pill small fw-bold">@total palavras</span>
+                    </div>
+                    <div class="text-end">
+                        <span class="fw-bold text-white fs-5 js-pct">@porcentagem%</span>
+                        <div class="small text-white-50 js-count">@traduzidos / @total</div>
+                    </div>
+                </div>
+                <div class="progress bg-white bg-opacity-25" style="height: 10px; border-radius: 10px;">
+                    <div class="progress-bar bg-white progress-bar-striped js-bar" role="progressbar" style="width: @porcentagem%;" aria-valuenow="@porcentagem" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach (var vocab in nivel.Value)
+                    {
+                        string classeBotao = vocab.TemTraducao ? "btn-vocab-success" : "btn-outline-secondary";
+
+                        <button onclick="abrirModal(@vocab.Id)"
+                                class="btn @classeBotao d-flex flex-column justify-content-center align-items-center shadow-sm vocab-btn"
+                                style="min-width: 80px; height: auto; padding: 6px 12px; transition: transform 0.2s, box-shadow 0.2s;"
+                                title="@(vocab.TemTraducao ? "Traduzido" : "Pendente")"
+                                data-search="@vocab.SearchText">
+                            <span class="fw-bold fs-4 mb-0" style="line-height: 1.2;">@vocab.Palavra</span>
+                            <small class="small text-opacity-75" style="font-size: 0.75rem;">@vocab.LeituraPrincipal</small>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        // 1. FILTRAGEM NA TELA
+        function filtrarVocab() {
+            const termo = document.getElementById('inputBusca').value.toLowerCase().trim();
+            const botoes = document.querySelectorAll('.vocab-btn');
+            const secoes = document.querySelectorAll('.vocab-section');
+
+            botoes.forEach(btn => {
+                const keywords = btn.getAttribute('data-search');
+                if (termo === "" || keywords.includes(termo)) {
+                    btn.classList.remove('d-none'); btn.classList.add('d-flex');
+                } else {
+                    btn.classList.add('d-none'); btn.classList.remove('d-flex');
+                }
+            });
+
+            secoes.forEach(sec => {
+                const visiveis = sec.querySelectorAll('.vocab-btn:not(.d-none)').length;
+                sec.style.display = visiveis > 0 ? 'block' : 'none';
+            });
+        }
+
+        // 2. ABRIR O MODAL (MOCK PARA O PRÓXIMO PASSO)
+        async function abrirModal(id) {
+            const modalEl = document.getElementById('modalTraducao');
+            let modal = bootstrap.Modal.getInstance(modalEl);
+            if (!modal) modal = new bootstrap.Modal(modalEl);
+            modal.show();
+
+            document.getElementById('modalConteudoDinamico').innerHTML =
+                `<div class="modal-body text-center p-5"><div class="spinner-border text-vocab"></div></div>`;
+
+            try {
+                // Rota que criaremos a seguir
+                const r = await fetch(`/Vocabulary/DetalhesModal/${id}`);
+                if(r.ok) {
+                    document.getElementById('modalConteudoDinamico').innerHTML = await r.text();
+                } else {
+                    document.getElementById('modalConteudoDinamico').innerHTML = '<div class="p-3 text-danger">Erro ao carregar detalhes.</div>';
+                }
+            } catch(e) { console.error(e); }
+        }
+    </script>
+}
+
+<style>
+    :root {
+        /* A cor extraída da sua imagem para a tag <v> */
+        --color-vocab-main: #20c997;
+        --color-vocab-dark: #1aa179;
+    }
+
+    .text-vocab {
+        color: var(--color-vocab-main) !important;
+    }
+
+    .bg-vocab {
+        background-color: var(--color-vocab-main) !important;
+        border-color: var(--color-vocab-main) !important;
+    }
+
+    .border-vocab {
+        border-color: var(--color-vocab-main) !important;
+    }
+
+    /* Botão Traduzido (Borda verde menta, texto verde menta. Ao passar o mouse, inverte) */
+    .btn-vocab-success {
+        background-color: #ffffff;
+        border: 2px solid var(--color-vocab-main);
+        color: var(--color-vocab-dark);
+    }
+
+        .btn-vocab-success small {
+            color: #6c757d; /* Cinza suave na leitura */
+        }
+
+        /* Efeito de Hover */
+        .btn-vocab-success:hover {
+            background-color: var(--color-vocab-main);
+            color: #ffffff !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(32, 201, 151, 0.3) !important;
+        }
+
+            .btn-vocab-success:hover small {
+                color: #e9ecef !important; /* Branco suave na leitura ao passar o mouse */
+            }
+
+    /* Hover dos botões cinzas (pendentes) */
+    .btn-outline-secondary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+</style>

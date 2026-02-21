@@ -1,154 +1,155 @@
 ﻿@model Denkiishi_v2.Models.RadicalDetalhesViewModel
 
 <input type="hidden" id="modalRadicalId" value="@Model.RadicalId" />
+<input type="hidden" id="editorMeaningId" value="" />
+
+<input type="hidden" id="dadosSyntaxHighlight" value='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ListaSyntax.Select(s => new { 
+    code = s.Code, textColor = s.TextColor, bgColor = s.BackgroundColor, 
+    bold = s.IsBold, italic = s.IsItalic, underline = s.IsUnderline 
+})))' />
 
 <div class="modal-header bg-info text-white">
     <div class="d-flex align-items-center gap-3">
-        <div class="bg-white text-info rounded-circle d-flex align-items-center justify-content-center shadow-sm"
-             style="width: 48px; height: 48px;">
+        <div class="bg-white text-info rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px;">
             <span class="fs-4 fw-bold">@Model.Caractere</span>
         </div>
         <div>
-            <h5 class="modal-title m-0 fw-bold">Detalhes do Radical</h5>
+            <h5 class="modal-title m-0 fw-bold">Detalhes & Histórias</h5>
             <small class="text-white-50"><i class="fa fa-pen-nib me-1"></i> @Model.InfoTraços</small>
         </div>
     </div>
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 
-<div class="modal-body bg-light">
-    <div class="row g-3">
+<div class="modal-body bg-light p-0">
+    <div class="modal-slider-container">
+        <div class="modal-slider-wrapper" id="sliderWrapper">
 
-        <div class="col-md-5 d-flex flex-column gap-3">
+            <div class="modal-slide p-3" id="slideDetalhes">
+                <div class="row g-3">
+                    <div class="col-md-5 d-flex flex-column gap-3">
+                        <div class="card shadow-sm text-center border-info">
+                            <div class="card-body py-4">
+                                <h1 class="display-1 fw-bold text-dark mb-0">@Model.Caractere</h1>
+                                <span class="badge bg-info text-dark bg-opacity-25 border border-info mt-2">RADICAL</span>
+                            </div>
+                        </div>
 
-            <div class="card shadow-sm text-center border-info">
-                <div class="card-body py-4">
-                    <h1 class="display-1 fw-bold text-dark mb-0">@Model.Caractere</h1>
-                    <span class="badge bg-info text-dark bg-opacity-25 border border-info mt-2">RADICAL</span>
-                </div>
-            </div>
-
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-                    <h6 class="fw-bold text-secondary small text-uppercase">
-                        <i class="fa fa-link me-1"></i> Usado nos Kanjis:
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        @if (ViewBag.KanjisRelacionados != null)
-                        {
-                            @foreach (var kanji in ViewBag.KanjisRelacionados)
-                            {
-                                // Lógica de Cores Completa (N5 ao N1)
-                                string borderClass = "border-secondary";
-                                string textClass = "text-secondary";
-
-                                switch (kanji.Nivel)
-                                {
-                                    case 5: borderClass = "border-primary"; break;
-                                    case 4: borderClass = "border-info"; break;
-                                    case 3: borderClass = "border-success"; break;
-                                    case 2: borderClass = "border-warning"; break;
-                                    case 1: borderClass = "border-danger"; break;
-                                }
-
-                                @* --- AQUI ESTÁ A MUDANÇA (ADICIONEI OS DATA-BS-...) --- *@
-                                <a asp-controller="Kanji"
-                                   asp-action="Detalhes"
-                                   asp-route-id="@kanji.Id"
-                                   class="btn btn-light border @borderClass @textClass btn-sm fw-bold shadow-sm"
-                                   style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;"
-                                   target="_blank"
-                                   data-bs-toggle="popover"
-                                   data-bs-trigger="hover"
-                                   data-bs-placement="top"
-                                   data-bs-html="true"
-                                   title="Kanji N@(kanji.Nivel)"
-                                   data-bs-content="<div class='text-center'><span class='display-1 fw-bold text-dark'>@kanji.Literal</span></div>">
-                                    @kanji.Literal
-                                </a>
-                                @* ----------------------------------------------------- *@
-                            }
-                        }
-                        else
-                        {
-                            <span class="text-muted small fst-italic">Nenhum kanji encontrado.</span>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-7 d-flex flex-column gap-3">
-
-            <div class="card shadow-sm">
-                <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
-                    <span><i class="fa fa-list me-2"></i> Traduções Atuais</span>
-                    <span class="badge bg-white text-success rounded-pill">@Model.TraducoesAgrupadas.Sum(g => g.Significados.Count)</span>
-                </div>
-                <div class="card-body p-0 bg-white" style="max-height: 250px; overflow-y: auto;">
-                    @if (Model.TraducoesAgrupadas.Any())
-                    {
-                        @foreach (var grupo in Model.TraducoesAgrupadas)
-                        {
-                            <div class="p-3 border-bottom">
-                                <strong class="text-success small text-uppercase d-block mb-2">
-                                    <i class="fa fa-language me-1"></i> @grupo.Lingua
-                                </strong>
-                                <div class="d-flex flex-wrap gap-2">
-                                    @foreach (var sig in grupo.Significados)
+                        <div class="card shadow-sm border-0">
+                            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                                <h6 class="fw-bold text-secondary small text-uppercase">
+                                    <i class="fa fa-link me-1"></i> Usado nos Kanjis:
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                                    @if (Model.KanjisRelacionados != null && Model.KanjisRelacionados.Any())
                                     {
-                                        <div class="badge bg-light text-dark border d-flex align-items-center px-3 py-2">
-                                            <span class="fs-6 fw-normal me-2">@sig.Texto</span>
-                                            <span onclick="modalExcluirTraducao(@sig.Id)"
-                                                  class="hover-delete ms-1 text-danger"
-                                                  title="Excluir tradução"
-                                                  style="cursor: pointer;">
-                                                <i class="fa fa-times-circle"></i>
-                                            </span>
-                                        </div>
+                                        @foreach (var kanji in Model.KanjisRelacionados)
+                                        {
+                                            string borderClass = kanji.Nivel switch { 5 => "border-primary", 4 => "border-info", 3 => "border-success", 2 => "border-warning", 1 => "border-danger", _ => "border-secondary" };
+                                            
+                                            <a asp-controller="Kanji" asp-action="Detalhes" asp-route-id="@kanji.Id" class="btn btn-light border @borderClass btn-sm fw-bold shadow-sm" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;" target="_blank" title="Kanji N@(kanji.Nivel)">@kanji.Literal</a>
+                                        }
                                     }
+                                    else { <span class="text-muted small fst-italic">Nenhum kanji.</span> }
                                 </div>
                             </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="text-center py-5 text-muted">
-                            <i class="fa fa-ghost fa-2x mb-2 opacity-50"></i>
-                            <p class="small m-0">Nenhuma tradução cadastrada ainda.</p>
                         </div>
-                    }
-                </div>
-            </div>
+                    </div>
 
-            <div class="card shadow-sm border-primary">
-                <div class="card-header bg-primary text-white py-2">
-                    <strong><i class="fa fa-plus-circle me-1"></i> Adicionar Significado</strong>
-                </div>
-                <div class="card-body bg-light">
-                    <div class="row g-2 mb-2">
-                        <div class="col-4">
-                            <select asp-for="LinguaSelecionadaId" asp-items="Model.LinguasDisponiveis" class="form-select form-select-sm" id="modalComboLingua"></select>
+                    <div class="col-md-7 d-flex flex-column gap-3">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
+                                <span><i class="fa fa-list me-2"></i> Traduções (Clique para Criar História)</span>
+                                <span class="badge bg-white text-success rounded-pill">@Model.TraducoesAgrupadas.Sum(g => g.Significados.Count)</span>
+                            </div>
+                            <div class="card-body p-0 bg-white" style="max-height: 250px; overflow-y: auto;">
+                                @if (Model.TraducoesAgrupadas.Any())
+                                {
+                                    @foreach (var grupo in Model.TraducoesAgrupadas)
+                                    {
+                                        <div class="p-3 border-bottom">
+                                            <strong class="text-success small text-uppercase d-block mb-2"><i class="fa fa-language me-1"></i> @grupo.Lingua</strong>
+                                            <div class="d-flex flex-wrap gap-2">
+                                                @foreach (var sig in grupo.Significados)
+                                                {
+                                                    // AQUI: Tornamos a badge clicável para abrir o editor
+                                                    <div class="badge-clickable badge bg-light text-dark border d-flex align-items-center px-3 py-2"
+                                                         onclick="abrirEditorHistoria(@sig.Id, '@sig.Texto', '@grupo.Lingua', @(sig.TemHistoria ? "true" : "false"))"
+                                                         title="Editar História">
+                                                        
+                                                        <span class="fs-6 fw-normal me-2">
+                                                            @sig.Texto
+                                                            @if (sig.TemHistoria) { <i class="fa fa-book-open text-info ms-1"></i> }
+                                                        </span>
+                                                        
+                                                        <span onclick="event.stopPropagation(); modalExcluirTraducao(@sig.Id)" class="hover-delete ms-1 text-danger" title="Excluir tradução" style="cursor: pointer;">
+                                                            <i class="fa fa-times-circle"></i>
+                                                        </span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                else { <div class="text-center py-5 text-muted"><p class="small m-0">Nenhuma tradução.</p></div> }
+                            </div>
                         </div>
-                        <div class="col-8">
-                            <div class="input-group input-group-sm">
-                                <input type="text" id="modalInputPalavra" class="form-control"
-                                       placeholder="Ex: Árvore..."
-                                       onkeypress="if(event.key === 'Enter'){ event.preventDefault(); modalAddPalavra(); }">
-                                <button class="btn btn-primary" type="button" onclick="modalAddPalavra()">
-                                    <i class="fa fa-plus"></i>
-                                </button>
+
+                        <div class="card shadow-sm border-primary">
+                            <div class="card-header bg-primary text-white py-2"><strong><i class="fa fa-plus-circle me-1"></i> Adicionar Significado</strong></div>
+                            <div class="card-body bg-light">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-4"><select asp-for="LinguaSelecionadaId" asp-items="Model.LinguasDisponiveis" class="form-select form-select-sm" id="modalComboLingua"></select></div>
+                                    <div class="col-8">
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" id="modalInputPalavra" class="form-control" placeholder="Ex: Árvore..." onkeypress="if(event.key === 'Enter'){ event.preventDefault(); modalAddPalavra(); }">
+                                            <button class="btn btn-primary" type="button" onclick="modalAddPalavra()"><i class="fa fa-plus"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="modalContainerChips" class="d-flex flex-wrap gap-2 p-2 bg-white rounded border" style="min-height: 40px;">
+                                    <span class="text-muted small w-100 text-center align-self-center fst-italic opacity-50" id="msgVazio">Digite acima...</span>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <div id="modalContainerChips" class="d-flex flex-wrap gap-2 p-2 bg-white rounded border" style="min-height: 40px;">
-                        <span class="text-muted small w-100 text-center align-self-center fst-italic opacity-50" id="msgVazio">
-                            Digite acima para adicionar à lista...
-                        </span>
+            <div class="modal-slide p-3 bg-white" id="slideEditor">
+                <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="voltarParaDetalhes()"><i class="fa fa-arrow-left"></i> Voltar</button>
+                    <div class="text-center"><h5 class="m-0 fw-bold text-info" id="lblEditorTitulo">---</h5><small class="text-muted" id="lblEditorLingua">---</small></div>
+                    <button id="btnExcluirHistoria" class="btn btn-outline-danger btn-sm" onclick="excluirHistoriaBackend()" style="display:none;"><i class="fa fa-trash"></i></button>
+                    <div id="spacerHeader" style="width: 35px; display:none;"></div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="syntax-toolbar d-flex flex-wrap gap-1 p-2 bg-light border rounded-top">
+                        @if (Model.ListaSyntax != null)
+                        {
+                            foreach (var item in Model.ListaSyntax)
+                            {
+                                string style = $"color:{item.TextColor};";
+                                if (!string.IsNullOrEmpty(item.BackgroundColor)) style += $"background-color:{item.BackgroundColor};";
+                                <button type="button" class="btn btn-sm btn-white border" style="@style" onclick="inserirTagEditor('@item.Code')">@item.Code</button>
+                            }
+                        }
                     </div>
+                    <textarea id="txtEditorHistoria" class="form-control editor-textarea" placeholder="Crie um mnemônico..." oninput="atualizarPreviewEditor()"></textarea>
+                </div>
+
+                <div class="card bg-light border-0 mb-3">
+                    <div class="card-body py-2">
+                        <small class="text-muted fw-bold">Preview:</small>
+                        <div id="divEditorPreview" class="mt-1 fs-5" style="min-height: 40px;"></div>
+                    </div>
+                </div>
+
+                <div class="d-grid">
+                    <button id="btnSalvarHistoria" type="button" class="btn btn-success" onclick="salvarHistoriaBackend()"><i class="fa fa-save"></i> Salvar História</button>
                 </div>
             </div>
 
@@ -156,33 +157,19 @@
     </div>
 </div>
 
-<div class="modal-footer bg-light border-top-0 pt-0">
+<div class="modal-footer bg-light border-top-0 pt-0" id="modalFooterPadrao">
     <div class="d-flex justify-content-between align-items-center w-100">
-
-        <span id="msgErroModal" class="text-danger fw-bold small shake-text text-truncate" style="display: none; max-width: 60%;">
-            <i class="fa fa-exclamation-circle me-1"></i> <span>Erro aqui</span>
-        </span>
-
+        <span id="msgErroModal" class="text-danger fw-bold small shake-text text-truncate" style="display: none; max-width: 60%;"></span>
         <div class="ms-auto">
             <div id="footerBtnDefault" class="d-flex gap-2">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
-                <button type="button" class="btn btn-success px-4 fw-bold shadow-sm" id="btnModalSalvar" onclick="modalSalvar()">
-                    <i class="fa fa-save me-1"></i> Salvar
-                </button>
+                <button type="button" class="btn btn-success px-4 fw-bold shadow-sm" id="btnModalSalvar" onclick="modalSalvar()"><i class="fa fa-save me-1"></i> Salvar</button>
             </div>
-
             <div id="footerBtnConfirm" class="align-items-center gap-2" style="display: none;">
                 <span class="text-danger fw-bold small me-2">Tem certeza?</span>
                 <button type="button" class="btn btn-sm btn-secondary" onclick="cancelarExclusao()">Não</button>
-                <button type="button" class="btn btn-sm btn-danger px-3" id="btnConfirmarExclusao">Sim, excluir</button>
+                <button type="button" class="btn btn-sm btn-danger px-3" id="btnConfirmarExclusao">Sim</button>
             </div>
         </div>
     </div>
 </div>
-
-<style>
-    .hover-delete:hover {
-        transform: scale(1.2);
-        color: #dc3545 !important; /* Vermelho mais forte */
-    }
-</style>

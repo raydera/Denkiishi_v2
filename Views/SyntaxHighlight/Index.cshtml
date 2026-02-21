@@ -1,0 +1,49 @@
+﻿@model IEnumerable<Denkiishi_v2.Models.SyntaxHighlight>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>🎨 Parametrização de Tags (Syntax Highlight)</h2>
+        <a asp-action="Create" class="btn btn-primary"><i class="fa fa-plus"></i> Nova Tag</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped m-0 align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código (Tag)</th>
+                        <th>Descrição</th>
+                        <th>Visualização (Preview)</th>
+                        <th class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        // Monta o CSS inline para mostrar na tabela
+                        string style = "";
+                        if (!string.IsNullOrEmpty(item.TextColor)) style += $"color: {item.TextColor};";
+                        if (!string.IsNullOrEmpty(item.BackgroundColor)) style += $"background-color: {item.BackgroundColor}; padding: 2px 5px; border-radius: 4px;";
+                        if (item.IsBold) style += "font-weight: bold;";
+                        if (item.IsItalic) style += "font-style: italic;";
+                        if (item.IsUnderline) style += "text-decoration: underline;";
+
+                        <tr>
+                            <td class="fw-bold text-primary">&lt;@item.Code&gt;</td>
+                            <td>@item.Description</td>
+                            <td>
+                                <span style="@style">Exemplo de Texto</span>
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Editar"><i class="fa fa-pen"></i></a>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa fa-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

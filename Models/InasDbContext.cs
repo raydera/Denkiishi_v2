@@ -49,8 +49,10 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VocabularyPartOfSpeech> VocabularyPartsOfSpeech { get; set; }
     public DbSet<VocabularyPartOfSpeechMap> VocabularyPartsOfSpeechMaps { get; set; }
     public virtual DbSet<SyntaxHighlight> SyntaxHighlights { get; set; }
+    public virtual DbSet<RadicalMeaningMnemonic> RadicalMeaningMnemonics { get; set; }
 
     public virtual DbSet<KanjiMeaningMnemonic> KanjiMeaningMnemonics { get; set; }
+    public virtual DbSet<KanjiReadingMnemonic> KanjiReadingMnemonics { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -176,6 +176,17 @@
         resize: vertical;
         min-height: 120px;
     }
+
+    .modal-slider-wrapper {
+        display: flex;
+        width: 300%; /* Aumentado para caber 3 telas */
+        transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .modal-slide {
+        width: 33.333%; /* Cada tela ocupa 1/3 */
+        flex-shrink: 0;
+    }
 </style>
 
 @section Scripts {
@@ -383,38 +394,65 @@
         // 8. LÓGICA DO EDITOR DE HISTÓRIAS (NOVO - SyntaxHighlight)
         // ==========================================
 
-        function abrirEditorHistoria(idMeaning, texto, lingua, temHistoria) {
-            // 1. Preenche os dados do cabeçalho
+                    // Note o 'async' aqui no começo da função
+        async function abrirEditorHistoria(idMeaning, texto, lingua, temHistoria) {
+
+            // 1. Configura Cabeçalho e IDs
             document.getElementById('lblEditorTitulo').innerText = texto;
             document.getElementById('lblEditorLingua').innerText = lingua;
             document.getElementById('editorMeaningId').value = idMeaning;
 
-            // 2. Esconde o footer principal
+            // 2. Esconde Footer
             const footer = document.getElementById('modalFooterPadrao');
-            if(footer) footer.style.display = 'none';
+            if(footer) {
+                footer.classList.remove('d-flex');
+                footer.classList.add('d-none');
+            }
 
-            // 3. Prepara o editor
+            // 3. Efeito Visual: Limpa e mostra "Carregando..."
             const txtArea = document.getElementById('txtEditorHistoria');
             txtArea.value = "Carregando...";
 
-            // Simulação - Depois faremos o fetch real
+            // Inicia o Slide imediatamente (para a UI ser rápida)
+            document.getElementById('sliderWrapper').style.transform = "translateX(-33.333%)";
+
+            // 4. Lógica de Carregamento (O Pulo do Gato 🐈)
             if(temHistoria) {
-                txtArea.value = "";
+                try {
+                    // Chama o Controller para pegar o texto real
+                    const response = await fetch(`/Kanji/GetHistoria?meaningId=${idMeaning}`);
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        txtArea.value = data.texto; // Preenche com a história do banco
+                    } else {
+                        txtArea.value = "Erro ao carregar história.";
+                    }
+                } catch (error) {
+                    console.error("Erro de conexão:", error);
+                    txtArea.value = "Erro de conexão.";
+                }
             } else {
+                // Se não tem história, limpa o campo para começar do zero
                 txtArea.value = "";
             }
-            atualizarPreviewEditor();
 
-            // 4. Slide para a esquerda
-            document.getElementById('sliderWrapper').style.transform = "translateX(-50%)";
+            // 5. Atualiza o Preview (cores) com o texto que acabou de chegar
+            setTimeout(atualizarPreviewEditor, 100);
         }
 
         function voltarParaDetalhes() {
+            // 1. Volta o slide
             document.getElementById('sliderWrapper').style.transform = "translateX(0)";
+
+            // 2. MOSTRA O FOOTER DE VOLTA
             setTimeout(() => {
                 const footer = document.getElementById('modalFooterPadrao');
-                if(footer) footer.style.display = 'flex';
-            }, 300);
+                if(footer) {
+                    footer.classList.remove('d-none'); // Remove o hidden
+                    footer.classList.add('d-flex');    // Volta o flex original
+                }
+            }, 300); // Espera a animação quase acabar
         }
 
         function inserirTagEditor(tag) {
@@ -430,43 +468,375 @@
             atualizarPreviewEditor();
         }
 
-        function atualizarPreviewEditor() {
-            const raw = document.getElementById('txtEditorHistoria').value;
-            // Simulação visual simples
-            let formatted = raw
-                .replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/&lt;v&gt;(.*?)&lt;\/v&gt;/g, '<span style="color:#dc3545; font-weight:bold;">$1</span>')
-                .replace(/&lt;n&gt;(.*?)&lt;\/n&gt;/g, '<span style="color:#0d6efd; font-weight:bold;">$1</span>')
-                .replace(/&lt;adj&gt;(.*?)&lt;\/adj&gt;/g, '<span style="color:#198754; font-style:italic;">$1</span>')
-                .replace(/&lt;mark&gt;(.*?)&lt;\/mark&gt;/g, '<span style="background-color:#ffc107;">$1</span>')
-                .replace(/\n/g, '<br>');
+            function atualizarPreviewEditor() {
+            let raw = document.getElementById('txtEditorHistoria').value;
+
+            // 1. Sanitização básica (Converte < para &lt; para evitar injeção de HTML malicioso)
+            raw = raw.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            // 2. Quebras de linha visual
+            let formatted = raw.replace(/\n/g, '<br>');
+
+            // 3. RECUPERAR REGRAS DO INPUT HIDDEN (CORREÇÃO DO AJAX)
+            let regras = [];
+            const inputRegras = document.getElementById('dadosSyntaxHighlight');
+
+            if (inputRegras && inputRegras.value) {
+                try {
+                    regras = JSON.parse(inputRegras.value);
+                } catch (e) {
+                    console.error("Erro ao converter regras de syntax:", e);
+                }
+            }
+
+            // 4. Aplicação Dinâmica das Regras
+            if (regras && Array.isArray(regras)) {
+                regras.forEach(rule => {
+                    // Monta o estilo CSS
+                    let style = "";
+                    if (rule.textColor) style += `color:${rule.textColor};`;
+                    if (rule.bgColor) style += `background-color:${rule.bgColor}; padding: 0 2px; border-radius: 3px;`;
+                    if (rule.bold) style += "font-weight:bold;";
+                    if (rule.italic) style += "font-style:italic;";
+                    if (rule.underline) style += "text-decoration:underline;";
+
+                    // Regex: Busca por &lt;codigo&gt;texto&lt;/codigo&gt;
+                    // O 'g' significa global (todas as ocorrências) e 'i' case-insensitive (opcional)
+                    const regex = new RegExp(`&lt;${rule.code}&gt;(.*?)&lt;/${rule.code}&gt;`, 'g');
+
+                    // Substitui a tag customizada por um SPAN com estilo real
+                    formatted = formatted.replace(regex, `<span style="${style}">$1</span>`);
+                });
+            }
+
+            // 5. Injeta no Preview
             const divPreview = document.getElementById('divEditorPreview');
             if(divPreview) divPreview.innerHTML = formatted;
         }
-
-        async function salvarHistoriaBackend() {
+            async function salvarHistoriaBackend() {
+            // 1. Captura os dados da tela
             const id = document.getElementById('editorMeaningId').value;
             const texto = document.getElementById('txtEditorHistoria').value;
 
-            const btn = event.target; // Captura o botão clicado
-            const originalHtml = btn.innerHTML;
+            // Captura o botão para efeitos visuais
+            const btn = event.target; // O botão que foi clicado
+            const originalHtml = btn.innerHTML; // Guarda o texto original ("Salvar")
+
+            // 2. Trava o botão e mostra Loading
             btn.disabled = true;
             btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
 
-            const payload = { MeaningId: parseInt(id), Texto: texto };
-            console.log("Enviando:", payload);
+            // 3. Prepara o pacote JSON
+            const payload = {
+                MeaningId: parseInt(id),
+                Texto: texto
+            };
 
-            // Simulação
-            setTimeout(() => {
-                btn.innerHTML = '<i class="fa fa-check"></i> Salvo!';
-                btn.classList.remove('btn-success'); btn.classList.add('btn-dark');
-                setTimeout(() => {
+            try {
+                // 4. Envia para o servidor
+                const response = await fetch('/Kanji/SalvarHistoriaMeaning', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Se estiver usando Anti-Forgery Token do ASP.NET Core, descomente a linha abaixo:
+                        // 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    // === SUCESSO ===
+                    const data = await response.json(); // Se quiser ler a mensagem do servidor
+
+                    // Feedback Visual Verde
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-dark'); // Fica escuro/concluído
+                    btn.innerHTML = '<i class="fa fa-check"></i> Salvo!';
+
+                    // Atualiza a UI da Badge na lista (opcional, mas chique)
+                    // Procura a badge que clicamos e adiciona o ícone de livro se não tiver
+                    atualizarBadgeNaLista(id);
+
+                    // Espera 1 segundo e volta para a lista de detalhes
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = originalHtml;
+                        btn.classList.add('btn-success');
+                        btn.classList.remove('btn-dark');
+
+                        voltarParaDetalhes(); // Fecha o slide do editor
+                    }, 1000);
+
+                } else {
+                    // === ERRO DO SERVIDOR ===
+                    const erroTxt = await response.text();
+                    alert("Erro ao salvar: " + erroTxt);
                     btn.disabled = false;
                     btn.innerHTML = originalHtml;
-                    btn.classList.add('btn-success'); btn.classList.remove('btn-dark');
-                    voltarParaDetalhes();
-                }, 1000);
-            }, 1000);
+                }
+
+            } catch (e) {
+                // === ERRO DE REDE ===
+                console.error(e);
+                alert("Erro de comunicação com o servidor.");
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+        // Função auxiliar para atualizar a badge visualmente sem recarregar a tela
+        function atualizarBadgeNaLista(meaningId) {
+            // Procura todos os onclicks para achar o que tem o ID certo
+            // Nota: Isso é uma busca aproximada baseada no HTML gerado
+            const badges = document.querySelectorAll('.badge-clickable');
+            badges.forEach(b => {
+                if(b.onclick && b.onclick.toString().includes(meaningId)) {
+                    // Verifica se já tem o ícone de livro
+                    if(!b.innerHTML.includes('fa-book-open')) {
+                        // Adiciona o ícone visualmente para o usuário saber que já tem história
+                        const icon = document.createElement('i');
+                        icon.className = 'fa fa-book-open text-info ms-1';
+                        icon.title = 'Tem História';
+                        // Insere antes do botão de fechar (x)
+                        const btnClose = b.querySelector('.hover-delete');
+                        if(btnClose) {
+                            b.insertBefore(icon, btnClose);
+                        } else {
+                            b.appendChild(icon);
+                        }
+
+                        // Atualiza o onclick para passar "true" (TemHistoria) na próxima vez
+                        // Isso é meio "hacky" via string replace, mas funciona para evitar reload
+                        // O ideal seria recarregar o modal, mas é mais lento.
+                    }
+                }
+            });
+        }
+
+                // --- LÓGICA DO READING ---
+
+             function abrirPainelReadings() {
+            const footer = document.getElementById('modalFooterPadrao');
+            if(footer) { footer.classList.remove('d-flex'); footer.classList.add('d-none'); }
+
+            // -66.666% mostra o terceiro slide
+            document.getElementById('sliderWrapper').style.transform = "translateX(-66.666%)";
+        }
+
+        // Adapte a função voltarParaDetalhes para resetar para 0
+        // Nota: Se a função antiga setava 'translateX(0)', continua funcionando.
+
+              async function selecionarReading(id, type, kana, temHistoria, isPrincipal) {
+            // 1. Setup UI
+            document.getElementById('msgSelecioneReading').style.display = 'none';
+            document.getElementById('areaEdicaoReading').style.display = 'block';
+
+            document.getElementById('lblReadingSelecionado').innerText = kana;
+            document.getElementById('lblReadingType').innerText = type;
+            document.getElementById('hdnReadingId').value = id;
+
+            // Controle do botão Excluir
+            const btnExcluir = document.getElementById('btnExcluirReading');
+            btnExcluir.style.display = temHistoria ? 'block' : 'none';
+
+            // 2. Carregar Texto
+            const txt = document.getElementById('txtEditorReading');
+            txt.value = "Carregando...";
+
+            if (temHistoria) {
+                try {
+                    const res = await fetch(`/Kanji/GetHistoriaReading?readingId=${id}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        txt.value = data.texto;
+                    } else {
+                        txt.value = "Erro ao carregar.";
+                    }
+                } catch { txt.value = "Erro de conexão."; }
+            } else {
+                txt.value = "";
+            }
+
+            atualizarPreviewReading();
+        }
+
+               // --- FUNÇÃO CORRIGIDA: INSERIR TAG NO READING ---
+        function inserirTagReading(tag) {
+            const txtArea = document.getElementById('txtEditorReading');
+
+            // 1. Captura posições
+            const start = txtArea.selectionStart;
+            const end = txtArea.selectionEnd;
+            const text = txtArea.value;
+            const selection = text.substring(start, end);
+
+            // 2. Define conteúdo (mantém seleção ou usa "texto")
+            const hasSelection = selection.length > 0;
+            const content = hasSelection ? selection : "texto";
+
+            // 3. Monta a tag
+            const tagOpen = `<${tag}>`;
+            const tagClose = `</${tag}>`;
+            const tagFull = tagOpen + content + tagClose;
+
+            // 4. Insere no texto
+            txtArea.value = text.substring(0, start) + tagFull + text.substring(end);
+
+            // 5. Ajusta cursor
+            if (hasSelection) {
+                const newCursorPos = start + tagFull.length;
+                txtArea.setSelectionRange(newCursorPos, newCursorPos);
+            } else {
+                txtArea.setSelectionRange(start + tagOpen.length, start + tagOpen.length + content.length);
+            }
+
+            txtArea.focus();
+            atualizarPreviewReading();
+        }
+
+        // --- FUNÇÃO CORRIGIDA: ATUALIZAR PREVIEW DO READING ---
+        function atualizarPreviewReading() {
+            // A. Pega o texto do editor de READING
+            const txtArea = document.getElementById('txtEditorReading');
+            if (!txtArea) return; // Segurança caso a tela não tenha carregado
+
+            let raw = txtArea.value;
+
+            // B. Sanitização (Converte < para &lt;)
+            raw = raw.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            let formatted = raw.replace(/\n/g, '<br>');
+
+            // C. Recupera as regras do input hidden (O mesmo usado pelo Meaning)
+            let regras = [];
+            const inputRegras = document.getElementById('dadosSyntaxHighlight');
+
+            if (inputRegras && inputRegras.value) {
+                try {
+                    regras = JSON.parse(inputRegras.value);
+                } catch (e) {
+                    console.error("Erro ao ler regras de syntax:", e);
+                }
+            }
+
+            // D. Aplica as regras (cores, negrito, etc)
+            if (regras && Array.isArray(regras)) {
+                regras.forEach(rule => {
+                    let style = "";
+                    if (rule.textColor) style += `color:${rule.textColor};`;
+                    if (rule.bgColor) style += `background-color:${rule.bgColor}; padding: 0 2px; border-radius: 3px;`;
+                    if (rule.bold) style += "font-weight:bold;";
+                    if (rule.italic) style += "font-style:italic;";
+                    if (rule.underline) style += "text-decoration:underline;";
+
+                    const regex = new RegExp(`&lt;${rule.code}&gt;(.*?)&lt;/${rule.code}&gt;`, 'g');
+                    formatted = formatted.replace(regex, `<span style="${style}">$1</span>`);
+                });
+            }
+
+            // E. Joga no preview de READING
+            const divPreview = document.getElementById('divPreviewReading');
+            if(divPreview) divPreview.innerHTML = formatted;
+        }
+
+               async function salvarReadingBackend() {
+            const id = document.getElementById('hdnReadingId').value;
+            const texto = document.getElementById('txtEditorReading').value;
+            const btn = document.getElementById('btnSalvarReading');
+            const originalHtml = btn.innerHTML;
+
+            btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
+
+            const payload = { ReadingId: parseInt(id), Texto: texto };
+
+            try {
+                const res = await fetch('/Kanji/SalvarHistoriaReading', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    // === ATUALIZAÇÃO VISUAL DA LISTA (DOM) ===
+
+                    // 1. Atualizar Estrela (Principal)
+                    // Remove de todos
+                    document.querySelectorAll('#listaReadings .icon-star').forEach(el => el.style.display = 'none');
+                    // Adiciona no atual
+                    const btnItem = document.getElementById('btn-reading-' + id);
+                    if(btnItem) {
+                        const star = btnItem.querySelector('.icon-star');
+                        if(star) star.style.display = 'block';
+
+                        // 2. Atualizar Livro (Tem História)
+                        const book = btnItem.querySelector('.icon-book');
+                        if(book) book.style.display = 'block';
+
+                        // 3. Atualizar o onclick do botão para saber que agora tem história
+                        // Isso evita ter que recarregar para poder excluir depois
+                        // Regex substitui o 4º argumento (temHistoria) de false para true
+                        let onclickAttr = btnItem.getAttribute('onclick');
+                        // Truque simples: substitui ", false," por ", true," se existir
+                        onclickAttr = onclickAttr.replace(', false,', ', true,');
+                        btnItem.setAttribute('onclick', onclickAttr);
+                    }
+
+                    // Mostra o botão excluir agora que salvou
+                    document.getElementById('btnExcluirReading').style.display = 'block';
+
+                    // Feedback botão
+                    btn.innerHTML = '<i class="fa fa-check"></i> Salvo!';
+                    btn.classList.remove('btn-success'); btn.classList.add('btn-dark');
+                    setTimeout(() => {
+                        btn.innerHTML = originalHtml;
+                        btn.disabled = false;
+                        btn.classList.add('btn-success'); btn.classList.remove('btn-dark');
+                    }, 1500);
+
+                } else {
+                    alert("Erro ao salvar.");
+                    btn.disabled = false; btn.innerHTML = originalHtml;
+                }
+            } catch (e) {
+                console.error(e);
+                btn.disabled = false; btn.innerHTML = originalHtml;
+            }
+        }
+                async function excluirHistoriaReading() {
+            if(!confirm("Tem certeza que deseja remover esta história?")) return;
+
+            const id = document.getElementById('hdnReadingId').value;
+            const btn = document.getElementById('btnExcluirReading');
+
+            try {
+                const res = await fetch(`/Kanji/ExcluirHistoriaReading?readingId=${id}`, { method: 'POST' });
+
+                if(res.ok) {
+                    // Limpa o editor
+                    document.getElementById('txtEditorReading').value = "";
+                    atualizarPreviewReading();
+
+                    // Esconde botão excluir
+                    btn.style.display = 'none';
+
+                    // Atualiza visualmente a lista (Remove o livro)
+                    const btnItem = document.getElementById('btn-reading-' + id);
+                    if(btnItem) {
+                        const book = btnItem.querySelector('.icon-book');
+                        if(book) book.style.display = 'none';
+
+                        // Atualiza onclick para false
+                        let onclickAttr = btnItem.getAttribute('onclick');
+                        // Regex mais segura para trocar 'true' por 'false' na posição do temHistoria
+                        // Mas o replace simples costuma bastar se a ordem for mantida
+                        onclickAttr = onclickAttr.replace(', true,', ', false,');
+                        btnItem.setAttribute('onclick', onclickAttr);
+                    }
+
+                    alert("História removida!");
+                } else {
+                    alert("Erro ao excluir.");
+                }
+            } catch(e) { console.error(e); }
         }
     </script>
 }

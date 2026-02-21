@@ -1,0 +1,119 @@
+﻿@model Denkiishi_v2.Models.SyntaxHighlight
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Editar Tag</h4>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Edit">
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <input type="hidden" asp-for="Id" />
+                        <input type="hidden" asp-for="CreatedAt" />
+
+                        <div class="row">
+                            <div class="col-md-6 border-end">
+                                <div class="mb-3">
+                                    <label asp-for="Code" class="form-label fw-bold">Código da Tag</label>
+                                    <input asp-for="Code" class="form-control" oninput="atualizarPreview()" required />
+                                    <span asp-validation-for="Code" class="text-danger"></span>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label asp-for="Description" class="form-label fw-bold">Descrição</label>
+                                    <input asp-for="Description" class="form-control" required />
+                                    <span asp-validation-for="Description" class="text-danger"></span>
+                                </div>
+
+                                <hr />
+
+                                <div class="row">
+                                    <div class="col-6 mb-3">
+                                        <label asp-for="TextColor" class="form-label">Cor do Texto</label>
+                                        <input type="color" asp-for="TextColor" class="form-control form-control-color w-100" oninput="atualizarPreview()" />
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label asp-for="BackgroundColor" class="form-label">Cor de Fundo</label>
+                                        <input type="color" asp-for="BackgroundColor" class="form-control form-control-color w-100" oninput="atualizarPreview()" />
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-3 mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" asp-for="IsBold" onchange="atualizarPreview()">
+                                        <label class="form-check-label" asp-for="IsBold">Negrito</label>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" asp-for="IsItalic" onchange="atualizarPreview()">
+                                        <label class="form-check-label" asp-for="IsItalic">Itálico</label>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" asp-for="IsUnderline" onchange="atualizarPreview()">
+                                        <label class="form-check-label" asp-for="IsUnderline">Sublinhado</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 d-flex flex-column align-items-center justify-content-center bg-light rounded">
+                                <h5 class="text-muted mb-4">Preview</h5>
+                                <div class="p-4 border rounded bg-white shadow-sm w-100 text-center">
+                                    <p class="mb-0 fs-5">
+                                        Texto <span id="previewBox" style="transition: all 0.3s;">Exemplo</span> Texto
+                                    </p>
+                                </div>
+                                <div class="mt-3 text-center">
+                                    <code>&lt;<span id="previewTag">...</span>&gt;</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 d-flex justify-content-end gap-2">
+                            <a asp-action="Index" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary px-4">Salvar Alterações</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    <script>
+        function atualizarPreview() {
+            var code = document.getElementById('Code').value || "...";
+            var color = document.getElementById('TextColor').value;
+            var bg = document.getElementById('BackgroundColor').value;
+            var bold = document.getElementById('IsBold').checked;
+            var italic = document.getElementById('IsItalic').checked;
+            var under = document.getElementById('IsUnderline').checked;
+
+            var el = document.getElementById('previewBox');
+            el.style.color = color;
+
+            if (bg && bg !== '#ffffff') {
+                el.style.backgroundColor = bg;
+                el.style.padding = '2px 5px';
+                el.style.borderRadius = '4px';
+            } else {
+                el.style.backgroundColor = 'transparent';
+                el.style.padding = '0';
+            }
+
+            el.style.fontWeight = bold ? 'bold' : 'normal';
+            el.style.fontStyle = italic ? 'italic' : 'normal';
+            el.style.textDecoration = under ? 'underline' : 'none';
+
+            document.getElementById('previewTag').innerText = code;
+        }
+
+        // Inicializa o preview com os dados carregados do banco
+        document.addEventListener("DOMContentLoaded", atualizarPreview);
+    </script>
+}
