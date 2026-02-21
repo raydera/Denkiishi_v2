@@ -19,32 +19,108 @@ namespace Denkiishi_v2.Controllers
             _context = context;
         }
 
-        // ==========================================
-        // 1. NOVOS MÉTODOS (VISUALIZAÇÃO / MOCK)
-        // ==========================================
+        // =======================================================
+        // MÉTODOS MOCKADOS PARA VALIDAR O VISUAL (VERDE MENTA)
+        // =======================================================
 
-        public async Task<IActionResult> Index(int? linguaId)
+        // GET: /Vocabulary/Index
+        // GET: /Vocabulary/Index
+        public async Task<IActionResult> Index(int? linguaId, int? categoriaId)
         {
-            var model = new VocabularyGeralViewModel();
+            // 1. Configurar Língua Padrão (Português)
+            var linguaPadrao = await _context.Language.FirstOrDefaultAsync(l => l.LanguageCode == "pt-br")
+                            ?? await _context.Language.FirstOrDefaultAsync();
+            int idLinguaFinal = linguaId ?? linguaPadrao?.Id ?? 1;
 
-            // Mock de dados para visualizarmos o layout
-            model.VocabPorNivel = new Dictionary<int, List<VocabularyStatusDto>>();
+            // 2. Configurar Categoria Padrão (Ex: JLPT)
+            var categoriaPadrao = await _context.Categories.FirstOrDefaultAsync(c => c.Name == "JLPT")
+                               ?? await _context.Categories.FirstOrDefaultAsync();
+            int idCategoriaFinal = categoriaId ?? categoriaPadrao?.Id ?? 1;
 
-            model.VocabPorNivel.Add(1, new List<VocabularyStatusDto>
+            // ====================================================================
+            // 3. QUERY REESCRITA (Buscando em memória para evitar erro de tradução SQL)
+            // ====================================================================
+
+            // Passo A: Busca apenas a relação básica (Vocabulary + CategoryMap)
+            var relacoes = await _context.VocabularyCategoryMaps
+                .Where(vcm => vcm.CategoryId == idCategoriaFinal)
+                .Include(vcm => vcm.Vocabulary) // Garante que traga os dados da tabela Vocabulary
+                .ToListAsync();
+
+            // Passo B: Extrai os IDs dos vocabulários para buscar os detalhes
+            var idsVocabularios = relacoes.Select(r => r.VocabularyId).Distinct().ToList();
+
+            // Passo C: Busca as leituras primárias
+            var leituras = await _context.VocabularyReadings
+                 .Where(r => idsVocabularios.Contains(r.VocabularyId))
+                 .ToListAsync();
+
+            // Passo D: Busca os significados na língua selecionada
+            var significados = await _context.VocabularyMeanings
+                 .Where(m => idsVocabularios.Contains(m.VocabularyId) && m.LanguageId == idLinguaFinal)
+                 .ToListAsync();
+
+            // ====================================================================
+
+            // 4. Montar a ViewModel com Agrupamento usando os dados em memória
+            var model = new VocabularyGeralViewModel
             {
-                new VocabularyStatusDto { Id = 1, Palavra = "大", LeituraPrincipal = "だい", SignificadoPrincipal = "Grande", TemTraducao = true, SearchText = "dai grande" },
-                new VocabularyStatusDto { Id = 2, Palavra = "一人", LeituraPrincipal = "ひとり", SignificadoPrincipal = "Uma pessoa", TemTraducao = true, SearchText = "hitori uma pessoa" },
-                new VocabularyStatusDto { Id = 3, Palavra = "日本人", LeituraPrincipal = "にほんじん", SignificadoPrincipal = "Japonês (pessoa)", TemTraducao = false, SearchText = "nihonjin japones" }
-            });
+                LinguaSelecionadaId = idLinguaFinal,
+                CategoriaSelecionadaId = idCategoriaFinal
+            };
 
-            model.LinguasDisponiveis = await _context.Language
-                .Select(l => new SelectListItem { Value = l.Id.ToString(), Text = l.Description })
+            var listaDtos = new List<VocabularyStatusDto>();
+
+            foreach (var rel in relacoes)
+            {
+                if (rel.Vocabulary == null) continue; // Evita NullReferenceException
+
+                var vId = rel.Vocabulary.Id;
+
+                // Encontra a leitura primária (ou a primeira que achar)
+                var leituraPrimaria = leituras
+                    .Where(r => r.VocabularyId == vId)
+                    .OrderByDescending(r => r.IsPrimary)
+                    .Select(r => r.Reading)
+                    .FirstOrDefault();
+
+                // Pega os significados desta palavra
+                var significadosDaPalavra = significados
+                    .Where(m => m.VocabularyId == vId)
+                    .Select(m => m.Meaning)
+                    .ToList();
+
+                listaDtos.Add(new VocabularyStatusDto
+                {
+                    Id = vId,
+                    Palavra = rel.Vocabulary.Characters,
+                    LeituraPrincipal = leituraPrimaria ?? "",
+                    TemTraducao = significadosDaPalavra.Any(),
+                    SearchText = $"{rel.Vocabulary.Characters} {leituraPrimaria} {string.Join(" ", significadosDaPalavra)}".ToLower()
+                });
+            }
+
+            // Agrupa os DTOs preenchidos
+            model.VocabPorNivel = relacoes
+                .GroupBy(r => string.IsNullOrEmpty(r.CategoryLevel) ? "Outros" : r.CategoryLevel)
+                .OrderByDescending(g => int.TryParse(g.Key, out int num) ? num : -1)
+                .ToDictionary(
+                    g => g.Key,
+                    g => listaDtos.Where(dto => g.Select(r => r.Vocabulary.Id).Contains(dto.Id)).ToList()
+                );
+
+            // 5. Preencher os Dropdowns da Tela
+            model.LinguasDisponiveis = await _context.Language.OrderBy(l => l.Description)
+                .Select(l => new SelectListItem { Value = l.Id.ToString(), Text = l.Description, Selected = l.Id == idLinguaFinal })
+                .ToListAsync();
+
+            model.CategoriasDisponiveis = await _context.Categories.OrderBy(c => c.Name)
+                .Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name, Selected = c.Id == idCategoriaFinal })
                 .ToListAsync();
 
             return View(model);
         }
-
-        public async Task<IActionResult> DetalhesModal(int? id)
+        public IActionResult DetalhesModal(int? id)
         {
             if (id == null) return NotFound();
 
@@ -52,22 +128,19 @@ namespace Denkiishi_v2.Controllers
             var model = new VocabularyDetalhesViewModel
             {
                 Id = id.Value,
-                Palavra = "日本人",
-                Nivel = 2,
-                Leituras = new List<string> { "にほんじん" },
-                ClassesGramaticais = new List<string> { "Substantivo", "Sufixo" },
+                Palavra = "悪い",
+                Nivel = "5", // Passado como string
+                Leituras = new List<string> { "わるい" },
+                ClassesGramaticais = new List<string> { "Adjetivo (i)" },
 
                 KanjisComponentes = new List<KanjiComponenteDto>
                 {
-                    new KanjiComponenteDto { Id = 10, Caractere = "日", Significado = "Sol", Nivel = 1 },
-                    new KanjiComponenteDto { Id = 11, Caractere = "本", Significado = "Livro/Origem", Nivel = 2 },
-                    new KanjiComponenteDto { Id = 12, Caractere = "人", Significado = "Pessoa", Nivel = 1 }
+                    new KanjiComponenteDto { Id = 1, Caractere = "悪", Significado = "Ruim / Mal", Nivel = 4 }
                 },
 
                 Sentencas = new List<SentencaDto>
                 {
-                    new SentencaDto { Id = 1, Japones = "私は日本人です。", Traducao = "Eu sou japonês." },
-                    new SentencaDto { Id = 2, Japones = "あの人は日本人ではありません。", Traducao = "Aquela pessoa não é japonesa." }
+                    new SentencaDto { Id = 1, Japones = "今日は天気が悪いですね。", Traducao = "O tempo está ruim hoje, não é?" }
                 },
 
                 TraducoesAgrupadas = new List<VocabGrupoTraducaoDto>
@@ -77,8 +150,8 @@ namespace Denkiishi_v2.Controllers
                         Lingua = "Português (Brasil)",
                         Significados = new List<VocabSignificadoDto>
                         {
-                            new VocabSignificadoDto { Id = 1, Texto = "Japonês (pessoa)", IsPrimary = true },
-                            new VocabSignificadoDto { Id = 2, Texto = "Cidadão Japonês", IsPrimary = false }
+                            new VocabSignificadoDto { Id = 1, Texto = "Ruim", IsPrimary = true },
+                            new VocabSignificadoDto { Id = 2, Texto = "Mal", IsPrimary = false }
                         }
                     }
                 }
@@ -87,15 +160,13 @@ namespace Denkiishi_v2.Controllers
             return PartialView("_ModalContent", model);
         }
 
-        // ==========================================
-        // 2. SEUS MÉTODOS ANTIGOS MANTIDOS
-        // ==========================================
+        // =======================================================
+        // SEUS MÉTODOS ANTIGOS DO VOCABULARY (INTACTOS)
+        // =======================================================
 
         public async Task<IActionResult> Edit(int id)
         {
-            var vocabulary = await _context.Vocabularies
-                .FirstOrDefaultAsync(v => v.Id == id);
-
+            var vocabulary = await _context.Vocabularies.FirstOrDefaultAsync(v => v.Id == id);
             if (vocabulary == null) return NotFound();
 
             var viewModel = new VocabularyEditViewModel
@@ -134,7 +205,6 @@ namespace Denkiishi_v2.Controllers
                 Jp = textJp,
                 En = textTranslated
             };
-
             _context.VocabularyContextSentences.Add(newSentence);
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Edit), new { id = vocabularyId });
@@ -150,85 +220,9 @@ namespace Denkiishi_v2.Controllers
                 Meaning = meaning,
                 Type = "primary"
             };
-
             _context.VocabularyMeanings.Add(newMeaning);
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Edit), new { id = vocabularyId });
         }
     }
-    // GET: /Vocabulary/Index
-        public async Task<IActionResult> Index(int? linguaId, int? categoriaId)
-        {
-            // 1. Configurar Língua Padrão (Português)
-            var linguaPadrao = await _context.Language.FirstOrDefaultAsync(l => l.LanguageCode == "pt-br")
-                            ?? await _context.Language.FirstOrDefaultAsync();
-            int idLinguaFinal = linguaId ?? linguaPadrao?.Id ?? 1;
-
-            // 2. Configurar Categoria Padrão (Ex: JLPT)
-            var categoriaPadrao = await _context.Categories.FirstOrDefaultAsync(c => c.Name == "JLPT")
-                               ?? await _context.Categories.FirstOrDefaultAsync();
-            int idCategoriaFinal = categoriaId ?? categoriaPadrao?.Id ?? 1;
-
-            // 3. A QUERY PRINCIPAL (Com os Joins conforme seu SQL)
-            var vocabQuery = await (from voca in _context.Vocabularies
-                                    join vcm in _context.VocabularyCategoryMaps on voca.Id equals vcm.VocabularyId
-                                    where vcm.CategoryId == idCategoriaFinal
-                                    select new
-                                    {
-                                        voca.Id,
-                                        Palavra = voca.Characters,
-                                        NivelCategoria = vcm.CategoryLevel,
-
-                                        // Busca a leitura primária direto na query para performance
-                                        Leitura = _context.VocabularyReadings
-                                                    .Where(r => r.VocabularyId == voca.Id)
-                                                    .OrderByDescending(r => r.IsPrimary) // Garante que a principal venha primeiro
-                                                    .Select(r => r.Reading)
-                                                    .FirstOrDefault(),
-
-                                        // Verifica se tem tradução na língua selecionada
-                                        TemTraducao = _context.VocabularyMeanings
-                                                    .Any(m => m.VocabularyId == voca.Id && m.IdLanguage == idLinguaFinal),
-
-                                        // Busca todos os significados para compor o texto de busca (Filtro JS)
-                                        Significados = _context.VocabularyMeanings
-                                                    .Where(m => m.VocabularyId == voca.Id && m.IdLanguage == idLinguaFinal)
-                                                    .Select(m => m.Meaning)
-                                                    .ToList()
-                                    }).ToListAsync();
-
-            // 4. Montar a ViewModel com Agrupamento
-            var model = new VocabularyGeralViewModel
-            {
-                LinguaSelecionadaId = idLinguaFinal,
-                CategoriaSelecionadaId = idCategoriaFinal,
-
-                VocabPorNivel = vocabQuery
-                    .GroupBy(v => string.IsNullOrEmpty(v.NivelCategoria) ? "Outros" : v.NivelCategoria)
-                    // Tenta ordenar numericamente (para N5, N4, etc ou Níveis de 1 a 60 ficarem na ordem certa)
-                    .OrderBy(g => int.TryParse(g.Key, out int num) ? num : 999)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.Select(x => new VocabularyStatusDto
-                        {
-                            Id = x.Id,
-                            Palavra = x.Palavra,
-                            LeituraPrincipal = x.Leitura ?? "",
-                            TemTraducao = x.TemTraducao,
-                            SearchText = $"{x.Palavra} {x.Leitura} {string.Join(" ", x.Significados)}".ToLower()
-                        }).ToList()
-                    )
-            };
-
-            // 5. Preencher Dropdowns
-            model.LinguasDisponiveis = await _context.Language.OrderBy(l => l.Description)
-                .Select(l => new SelectListItem { Value = l.Id.ToString(), Text = l.Description, Selected = l.Id == idLinguaFinal })
-                .ToListAsync();
-
-            model.CategoriasDisponiveis = await _context.Categories.OrderBy(c => c.Name)
-                .Select(c => new SelectListItem { Value = c.Id.ToString(), Text = c.Name, Selected = c.Id == idCategoriaFinal })
-                .ToListAsync();
-
-            return View(model);
-        }
-    }
+}

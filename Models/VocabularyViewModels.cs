@@ -3,16 +3,11 @@ using System.Collections.Generic;
 
 namespace Denkiishi_v2.Models
 {
-    // === VIEW MODEL DA TELA INDEX ===
     public class VocabularyGeralViewModel
     {
-        // Alterado de int para string, pois category_level é texto
         public Dictionary<string, List<VocabularyStatusDto>> VocabPorNivel { get; set; } = new();
-
         public int LinguaSelecionadaId { get; set; }
         public List<SelectListItem> LinguasDisponiveis { get; set; } = new();
-
-        // NOVO: Filtro de Categoria
         public int CategoriaSelecionadaId { get; set; }
         public List<SelectListItem> CategoriasDisponiveis { get; set; } = new();
     }
@@ -22,11 +17,11 @@ namespace Denkiishi_v2.Models
         public int Id { get; set; }
         public string Palavra { get; set; }
         public string LeituraPrincipal { get; set; }
+        public string SignificadoPrincipal { get; set; }
         public bool TemTraducao { get; set; }
         public string SearchText { get; set; }
     }
 
-    // === VIEW MODEL DO MODAL (Para os próximos passos) ===
     public class VocabularyDetalhesViewModel
     {
         public int Id { get; set; }
@@ -35,7 +30,10 @@ namespace Denkiishi_v2.Models
         public List<string> Leituras { get; set; } = new();
         public List<VocabGrupoTraducaoDto> TraducoesAgrupadas { get; set; } = new();
         public List<string> ClassesGramaticais { get; set; } = new();
-        public List<KanjiDto> KanjisComponentes { get; set; } = new();
+
+        // CORRIGIDO AQUI: A classe correta para compor a View
+        public List<KanjiComponenteDto> KanjisComponentes { get; set; } = new();
+
         public List<SentencaDto> Sentencas { get; set; } = new();
         public int LinguaSelecionadaId { get; set; }
         public List<SelectListItem> LinguasDisponiveis { get; set; } = new();
@@ -53,6 +51,15 @@ namespace Denkiishi_v2.Models
         public string Texto { get; set; }
         public bool IsPrimary { get; set; }
         public bool TemHistoria { get; set; }
+    }
+
+    // CORRIGIDO AQUI: Adicionada a classe que faltava
+    public class KanjiComponenteDto
+    {
+        public int Id { get; set; }
+        public string Caractere { get; set; }
+        public string Significado { get; set; }
+        public int Nivel { get; set; }
     }
 
     public class SentencaDto

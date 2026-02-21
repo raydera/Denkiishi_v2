@@ -53,6 +53,7 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
 
     public virtual DbSet<KanjiMeaningMnemonic> KanjiMeaningMnemonics { get; set; }
     public virtual DbSet<KanjiReadingMnemonic> KanjiReadingMnemonics { get; set; }
+    public virtual DbSet<VocabularyCategoryMap> VocabularyCategoryMaps { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
