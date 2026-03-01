@@ -136,6 +136,337 @@
                 }
             } catch(e) { console.error(e); }
         }
+            async function salvarNovaTraducao(e) {
+            e.preventDefault(); // Evita que a página recarregue
+
+            const form = e.target;
+            const btn = form.querySelector('button[type="submit"]');
+            const textoOriginal = btn.innerHTML;
+
+            // Coloca um "loading" no botão
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            btn.disabled = true;
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/Vocabulary/AddMeaning', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    // Se deu certo, recarrega o Modal chamando a função que já existe na tela principal
+                    const vocabId = document.getElementById('vocabId').value;
+                    abrirModal(vocabId);
+                } else {
+                    alert('Erro ao salvar tradução.');
+                    btn.innerHTML = textoOriginal;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Falha na comunicação com o servidor.');
+                btn.innerHTML = textoOriginal;
+                btn.disabled = false;
+            }
+        }
+        // ==========================================
+        // LÓGICA DO SLIDER DO MNEMÔNICO & SYNTAX
+        // ==========================================
+
+        function abrirPainelMnemonic(meaningId, texto) {
+            document.getElementById('sliderMnemonic').style.transform = 'translateX(-33.333%)';
+            document.getElementById('labelTraducao').innerText = `"${texto}"`;
+            document.getElementById('currentMeaningId').value = meaningId;
+
+            // Reseta a tela
+            document.getElementById('txtMnemonic').value = 'Carregando...';
+            document.getElementById('divMnemonicPreview').innerHTML = '';
+            document.getElementById('btnExcluirMnemonic').classList.add('d-none');
+            document.getElementById('currentMnemonicId').value = '0';
+
+            fetch(`/Vocabulary/GetMeaningMnemonic?meaningId=${meaningId}`)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('txtMnemonic').value = data.text;
+
+                    if (data.id > 0) {
+                        document.getElementById('currentMnemonicId').value = data.id;
+                        document.getElementById('btnExcluirMnemonic').classList.remove('d-none');
+                    }
+                    // Atualiza o preview na hora que os dados chegam
+                    atualizarPreviewMnemonic();
+                });
+        }
+
+        function fecharPainelMnemonic() {
+            document.getElementById('sliderMnemonic').style.transform = 'translateX(0%)';
+        }
+
+
+        function abrirPainelReadings() {
+            // Vai para -66.666% (Slide 3)
+            document.getElementById('sliderMnemonic').style.transform = "translateX(-66.666%)";
+        }
+
+        function fecharParaPrincipal() {
+            // Volta para 0% (Slide 1)
+            document.getElementById('sliderMnemonic').style.transform = 'translateX(0%)';
+        }
+        // --- FUNÇÕES DO SYNTAX HIGHLIGHT ---
+        function inserirTagMnemonic(tag) {
+            const txtArea = document.getElementById('txtMnemonic');
+            const start = txtArea.selectionStart;
+            const end = txtArea.selectionEnd;
+            const text = txtArea.value;
+            const selection = text.substring(start, end);
+
+            const content = selection.length > 0 ? selection : "texto";
+            const tagFull = `<${tag}>${content}</${tag}>`;
+
+            txtArea.value = text.substring(0, start) + tagFull + text.substring(end);
+
+            // Reposiciona o cursor
+            if (selection.length > 0) {
+                const newPos = start + tagFull.length;
+                txtArea.setSelectionRange(newPos, newPos);
+            } else {
+                txtArea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + content.length);
+            }
+
+            txtArea.focus();
+            atualizarPreviewMnemonic();
+        }
+
+        function atualizarPreviewMnemonic() {
+            let raw = document.getElementById('txtMnemonic').value;
+            if(!raw || raw === 'Carregando...') {
+                document.getElementById('divMnemonicPreview').innerHTML = '';
+                return;
+            }
+
+            // 1. Sanitização
+            raw = raw.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            let formatted = raw.replace(/\n/g, '<br>');
+
+            // 2. Recuperar as regras
+            let regras = [];
+            const inputRegras = document.getElementById('dadosSyntaxHighlight');
+            if (inputRegras && inputRegras.value) {
+                try { regras = JSON.parse(inputRegras.value); } catch (e) {}
+            }
+
+            // 3. Aplica o CSS
+            if (regras && Array.isArray(regras)) {
+                regras.forEach(rule => {
+                    let style = "";
+                    if (rule.textColor) style += `color:${rule.textColor};`;
+                    if (rule.bgColor) style += `background-color:${rule.bgColor}; padding: 0 2px; border-radius: 3px;`;
+                    if (rule.bold) style += "font-weight:bold;";
+                    if (rule.italic) style += "font-style:italic;";
+                    if (rule.underline) style += "text-decoration:underline;";
+
+                    const regex = new RegExp(`&lt;${rule.code}&gt;(.*?)&lt;/${rule.code}&gt;`, 'g');
+                    formatted = formatted.replace(regex, `<span style="${style}">$1</span>`);
+                });
+            }
+
+            document.getElementById('divMnemonicPreview').innerHTML = formatted;
+        }
+
+        // --- SALVAR E EXCLUIR ---
+        async function salvarMnemonic() {
+            const btn = document.getElementById('btnSalvarMnemonic');
+            const originalTxt = btn.innerHTML;
+
+            const meaningId = document.getElementById('currentMeaningId').value;
+            const mnemonicId = document.getElementById('currentMnemonicId').value;
+            const text = document.getElementById('txtMnemonic').value;
+
+            if(!text.trim()) { alert('Digite algo para salvar!'); return; }
+
+            btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
+
+            const formData = new FormData();
+            formData.append('meaningId', meaningId);
+            formData.append('text', text);
+            formData.append('mnemonicId', mnemonicId);
+
+            try {
+                const response = await fetch('/Vocabulary/SaveMeaningMnemonic', { method: 'POST', body: formData });
+                if(response.ok) {
+                    const vocabId = document.getElementById('vocabId').value;
+                    abrirModal(vocabId); // Recarrega para mostrar a estrela amarela!
+                }
+            } catch (e) { alert('Erro ao salvar!'); }
+            finally { btn.disabled = false; btn.innerHTML = originalTxt; }
+        }
+
+        async function excluirMnemonic() {
+            if(!confirm('Certeza que deseja excluir este mnemônico?')) return;
+
+            const mnemonicId = document.getElementById('currentMnemonicId').value;
+            const formData = new FormData();
+            formData.append('mnemonicId', mnemonicId);
+
+            try {
+                const response = await fetch('/Vocabulary/DeleteMeaningMnemonic', { method: 'POST', body: formData });
+                if(response.ok) {
+                    const vocabId = document.getElementById('vocabId').value;
+                    abrirModal(vocabId);
+                }
+            } catch (e) { alert('Erro ao excluir!'); }
+        }
+
+        
+
+        function fecharPainelMnemonic() {
+            // Desliza para a Direita (Volta ao normal)
+            document.getElementById('sliderMnemonic').style.transform = 'translateX(0%)';
+        }
+
+        async function salvarMnemonic() {
+            const meaningId = document.getElementById('currentMeaningId').value;
+            const mnemonicId = document.getElementById('currentMnemonicId').value;
+            const text = document.getElementById('txtMnemonic').value;
+
+            if(!text.trim()) { alert('Digite algo para salvar!'); return; }
+
+            const formData = new FormData();
+            formData.append('meaningId', meaningId);
+            formData.append('text', text);
+            formData.append('mnemonicId', mnemonicId);
+
+            try {
+                const response = await fetch('/Vocabulary/SaveMeaningMnemonic', { method: 'POST', body: formData });
+                if(response.ok) {
+                    // Recarrega o modal para exibir o ícone e a cor do Primary
+                    const vocabId = document.getElementById('vocabId').value;
+                    abrirModal(vocabId);
+                }
+            } catch (e) { alert('Erro ao salvar!'); }
+        }
+
+        async function excluirMnemonic() {
+            if(!confirm('Certeza que deseja excluir este mnemônico?')) return;
+
+            const mnemonicId = document.getElementById('currentMnemonicId').value;
+            const formData = new FormData();
+            formData.append('mnemonicId', mnemonicId);
+
+            try {
+                const response = await fetch('/Vocabulary/DeleteMeaningMnemonic', { method: 'POST', body: formData });
+                if(response.ok) {
+                    const vocabId = document.getElementById('vocabId').value;
+                    abrirModal(vocabId);
+                }
+            } catch (e) { alert('Erro ao excluir!'); }
+        }
+        // (Lembre-se de atualizar o fecharPainelMnemonic para usar translateX(0%) também)
+
+        // ==========================================
+        // LÓGICA DO EDITOR DE LEITURAS (READINGS)
+        // ==========================================
+        async function selecionarReadingVocab(id, reading, temHistoria, isPrimary) {
+            document.getElementById('msgSelecioneReadingVocab').style.display = 'none';
+            document.getElementById('areaEdicaoReadingVocab').style.display = 'flex';
+            document.getElementById('lblReadingSelecionadoVocab').innerText = reading;
+            document.getElementById('hdnReadingIdVocab').value = id;
+            document.getElementById('btnExcluirReadingVocab').style.display = temHistoria ? 'block' : 'none';
+
+            const txt = document.getElementById('txtEditorReadingVocab');
+            txt.value = "Carregando...";
+            document.getElementById('divPreviewReadingVocab').innerHTML = '';
+
+            if (temHistoria) {
+                try {
+                    const res = await fetch(`/Vocabulary/GetReadingMnemonic?readingId=${id}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        txt.value = data.texto;
+                        document.getElementById('divPreviewReadingVocab').innerHTML = data.formattedText || '';
+                    } else { txt.value = "Erro ao carregar."; }
+                } catch { txt.value = "Erro de conexão."; }
+            } else {
+                txt.value = "";
+            }
+        }
+
+        function inserirTagReadingVocab(tag) {
+            const txtArea = document.getElementById('txtEditorReadingVocab');
+            const start = txtArea.selectionStart;
+            const end = txtArea.selectionEnd;
+            const text = txtArea.value;
+            const selection = text.substring(start, end);
+            const content = selection.length > 0 ? selection : "texto";
+            const tagFull = `<${tag}>${content}</${tag}>`;
+
+            txtArea.value = text.substring(0, start) + tagFull + text.substring(end);
+            txtArea.setSelectionRange(start + tagFull.length, start + tagFull.length);
+            txtArea.focus();
+            atualizarPreviewReadingVocab();
+        }
+
+        function atualizarPreviewReadingVocab() {
+            let raw = document.getElementById('txtEditorReadingVocab').value;
+            if(!raw || raw === 'Carregando...') { document.getElementById('divPreviewReadingVocab').innerHTML = ''; return; }
+
+            raw = raw.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            let formatted = raw.replace(/\n/g, '<br>');
+
+            let regras = [];
+            const inputRegras = document.getElementById('dadosSyntaxHighlight');
+            if (inputRegras && inputRegras.value) { try { regras = JSON.parse(inputRegras.value); } catch(e){} }
+
+            if (regras && Array.isArray(regras)) {
+                regras.forEach(rule => {
+                    let style = "";
+                    if (rule.textColor) style += `color:${rule.textColor};`;
+                    if (rule.bgColor) style += `background-color:${rule.bgColor}; padding: 0 2px; border-radius: 3px;`;
+                    if (rule.bold) style += "font-weight:bold;";
+                    const regex = new RegExp(`&lt;${rule.code}&gt;(.*?)&lt;/${rule.code}&gt;`, 'g');
+                    formatted = formatted.replace(regex, `<span style="${style}">$1</span>`);
+                });
+            }
+            document.getElementById('divPreviewReadingVocab').innerHTML = formatted;
+        }
+
+        async function salvarReadingBackendVocab() {
+            const id = document.getElementById('hdnReadingIdVocab').value;
+            const texto = document.getElementById('txtEditorReadingVocab').value;
+            const btn = document.getElementById('btnSalvarReadingVocab');
+            const originalHtml = btn.innerHTML;
+
+            btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
+
+            const formData = new FormData();
+            formData.append('readingId', id);
+            formData.append('texto', texto);
+
+            try {
+                const res = await fetch('/Vocabulary/SaveReadingMnemonic', { method: 'POST', body: formData });
+                if (res.ok) {
+                    const vocabId = document.getElementById('vocabId').value;
+                    abrirModal(vocabId); // Recarrega o modal principal para atualizar as estrelas
+                } else { alert("Erro ao salvar."); btn.disabled = false; btn.innerHTML = originalHtml; }
+            } catch (e) { console.error(e); btn.disabled = false; btn.innerHTML = originalHtml; }
+        }
+
+        async function excluirHistoriaReadingVocab() {
+            if(!confirm("Tem certeza que deseja remover esta história?")) return;
+            const id = document.getElementById('hdnReadingIdVocab').value;
+            const formData = new FormData();
+            formData.append('readingId', id);
+
+            try {
+                const res = await fetch(`/Vocabulary/ExcluirHistoriaReading`, { method: 'POST', body: formData });
+                if(res.ok) {
+                    const vocabId = document.getElementById('vocabId').value;
+                    abrirModal(vocabId);
+                } else { alert("Erro ao excluir."); }
+            } catch(e) { console.error(e); }
+        }
     </script>
 }
 

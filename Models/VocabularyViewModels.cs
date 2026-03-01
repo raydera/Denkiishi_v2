@@ -20,6 +20,7 @@ namespace Denkiishi_v2.Models
         public string SignificadoPrincipal { get; set; }
         public bool TemTraducao { get; set; }
         public string SearchText { get; set; }
+        public string NivelCategoria { get; set; }
     }
 
     public class VocabularyDetalhesViewModel
@@ -27,7 +28,7 @@ namespace Denkiishi_v2.Models
         public int Id { get; set; }
         public string Palavra { get; set; }
         public string Nivel { get; set; }
-        public List<string> Leituras { get; set; } = new();
+        public List<VocabReadingDto> ListaReadings { get; set; } = new List<VocabReadingDto>();
         public List<VocabGrupoTraducaoDto> TraducoesAgrupadas { get; set; } = new();
         public List<string> ClassesGramaticais { get; set; } = new();
 
@@ -37,6 +38,7 @@ namespace Denkiishi_v2.Models
         public List<SentencaDto> Sentencas { get; set; } = new();
         public int LinguaSelecionadaId { get; set; }
         public List<SelectListItem> LinguasDisponiveis { get; set; } = new();
+        public List<SyntaxHighlight> ListaSyntax { get; set; } = new();
     }
 
     public class VocabGrupoTraducaoDto
@@ -67,5 +69,13 @@ namespace Denkiishi_v2.Models
         public int Id { get; set; }
         public string Japones { get; set; }
         public string Traducao { get; set; }
+    }
+
+    public class VocabReadingDto
+    {
+        public int Id { get; set; }
+        public string Reading { get; set; }
+        public bool IsPrimary { get; set; }
+        public bool TemHistoria { get; set; }
     }
 }

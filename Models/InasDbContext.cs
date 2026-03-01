@@ -50,10 +50,14 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VocabularyPartOfSpeechMap> VocabularyPartsOfSpeechMaps { get; set; }
     public virtual DbSet<SyntaxHighlight> SyntaxHighlights { get; set; }
     public virtual DbSet<RadicalMeaningMnemonic> RadicalMeaningMnemonics { get; set; }
-
     public virtual DbSet<KanjiMeaningMnemonic> KanjiMeaningMnemonics { get; set; }
     public virtual DbSet<KanjiReadingMnemonic> KanjiReadingMnemonics { get; set; }
     public virtual DbSet<VocabularyCategoryMap> VocabularyCategoryMaps { get; set; }
+    public virtual DbSet<VocabularyMeaningMnemonic> VocabularyMeaningMnemonics { get; set; }
+    public virtual DbSet<VocabularyReadingMnemonic> VocabularyReadingMnemonics { get; set; }
+    public virtual DbSet<Mandala> Mandalas { get; set; }
+    public virtual DbSet<Circle> Circles { get; set; }
+    public virtual DbSet<CircleUeItem> CircleUeItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -425,7 +429,7 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
 
             // Mapear colunas restantes para snake_case no banco
             entity.Property(e => e.Meaning).HasColumnName("meaning");
-            entity.Property(e => e.Type).HasColumnName("type");
+            //entity.Property(e => e.Type).HasColumnName("type");
             entity.Property(e => e.IsPrimary).HasColumnName("is_primary");
 
             entity.HasOne(d => d.Vocabulary)

@@ -106,7 +106,7 @@ namespace Denkiishi_v2.Services
 
                             foreach (var m in item.Data.Meanings)
                             {
-                                novoVocab.VocabularyMeanings.Add(new VocabularyMeaning { Meaning = m.Meaning, LanguageId = idLangEn, Type = m.Primary ? "primary" : "alternative" });
+                                novoVocab.VocabularyMeanings.Add(new VocabularyMeaning { Meaning = m.Meaning, LanguageId = idLangEn });
                             }
 
                             foreach (var r in item.Data.Readings)

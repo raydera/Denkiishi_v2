@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Denkiishi_v2.Models;
 
@@ -10,8 +11,10 @@ public partial class VocabularyMeaning
     public string Meaning { get; set; } = null!;
 
     // Campos necessários para a tradução por idioma
+
     public int LanguageId { get; set; }
-    public string? Type { get; set; } // 'primary', 'alternative', etc.
+
+    [Column("is_primary")]
     public bool IsPrimary { get; internal set; }
     public virtual Vocabulary Vocabulary { get; set; } = null!;
     public virtual Language Language { get; set; } = null!;
