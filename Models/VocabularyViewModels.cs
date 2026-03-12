@@ -10,6 +10,9 @@ namespace Denkiishi_v2.Models
         public List<SelectListItem> LinguasDisponiveis { get; set; } = new();
         public int CategoriaSelecionadaId { get; set; }
         public List<SelectListItem> CategoriasDisponiveis { get; set; } = new();
+        public int CirculoSelecionadoId { get; set; }
+        public List<SelectListItem> CirculosDisponiveis { get; set; } = new List<SelectListItem>();
+        public bool SwitchModalVocabulario { get; set; }
     }
 
     public class VocabularyStatusDto
@@ -21,6 +24,7 @@ namespace Denkiishi_v2.Models
         public bool TemTraducao { get; set; }
         public string SearchText { get; set; }
         public string NivelCategoria { get; set; }
+        public bool IsActive { get; set; }
     }
 
     public class VocabularyDetalhesViewModel
@@ -28,9 +32,14 @@ namespace Denkiishi_v2.Models
         public int Id { get; set; }
         public string Palavra { get; set; }
         public string Nivel { get; set; }
+        // Adicione estas duas linhas junto das outras propriedades:
+        public int? CirculoAtualId { get; set; }
+        public List<SelectListItem> CirculosDisponiveis { get; set; } = new List<SelectListItem>();
+
         public List<VocabReadingDto> ListaReadings { get; set; } = new List<VocabReadingDto>();
         public List<VocabGrupoTraducaoDto> TraducoesAgrupadas { get; set; } = new();
         public List<string> ClassesGramaticais { get; set; } = new();
+        public bool IsActive { get; set; }
 
         // CORRIGIDO AQUI: A classe correta para compor a View
         public List<KanjiComponenteDto> KanjisComponentes { get; set; } = new();
@@ -39,6 +48,8 @@ namespace Denkiishi_v2.Models
         public int LinguaSelecionadaId { get; set; }
         public List<SelectListItem> LinguasDisponiveis { get; set; } = new();
         public List<SyntaxHighlight> ListaSyntax { get; set; } = new();
+
+       
     }
 
     public class VocabGrupoTraducaoDto

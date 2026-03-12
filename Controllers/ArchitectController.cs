@@ -140,50 +140,121 @@ namespace Denkiishi_v2.Controllers
             var viewModel = new ArchitectViewModel();
 
             // ==============================================================
-            // BUSCA DE LÍNGUAS E SIGNIFICADOS PARA O FILTRO
+            // BUSCA DE LÍNGUAS E SIGNIFICADOS PARA O FILTRO (KANJI, RADICAL, VOCAB)
             // ==============================================================
             var linguas = await _context.Language.OrderBy(l => l.Description).ToListAsync();
             viewModel.LinguasDisponiveis = linguas.Select(l => new SelectListItem { Value = l.Id.ToString(), Text = l.Description }).ToList();
             viewModel.LinguaPadraoId = linguas.FirstOrDefault(l => l.Description.Contains("Português") || l.Description.Contains("Portuguese"))?.Id ?? (linguas.Any() ? linguas.First().Id : 1);
 
-            // Trazemos todas as traduções para a memória (é rápido)
-            var kanjiMeanings = await _context.Set<KanjiMeaning>().ToListAsync();
-            var vocabMeanings = await _context.VocabularyMeanings.ToListAsync();
+            // Dicionário mestre: "tipo_idItem" -> [idLingua -> lista de significados]
             var dictMeanings = new Dictionary<string, Dictionary<int, List<string>>>();
 
+            // 1. Significados dos Kanjis
+            var kanjiMeanings = await _context.Set<KanjiMeaning>().ToListAsync();
             foreach (var km in kanjiMeanings)
             {
-                int lId = System.Convert.ToInt32(km.IdLanguage); // Converte seguro, seja int ou int?
+                int lId = km.IdLanguage ?? 0;
+                if (lId == 0) continue;
                 string key = "kanji_" + km.KanjiId;
                 if (!dictMeanings.ContainsKey(key)) dictMeanings[key] = new Dictionary<int, List<string>>();
                 if (!dictMeanings[key].ContainsKey(lId)) dictMeanings[key][lId] = new List<string>();
                 dictMeanings[key][lId].Add(km.Gloss);
             }
 
+            // 2. Significados dos Vocabulários
+            var vocabMeanings = await _context.Set<VocabularyMeaning>().ToListAsync();
             foreach (var vm in vocabMeanings)
             {
-                int lId = System.Convert.ToInt32(vm.LanguageId);
+                int lId = vm.LanguageId ;
+                if (lId == 0) continue;
                 string key = "vocabulario_" + vm.VocabularyId;
                 if (!dictMeanings.ContainsKey(key)) dictMeanings[key] = new Dictionary<int, List<string>>();
                 if (!dictMeanings[key].ContainsKey(lId)) dictMeanings[key][lId] = new List<string>();
                 dictMeanings[key][lId].Add(vm.Meaning);
             }
-            // Carrega os Radicais para a pesquisa funcionar neles também!
-            var radicais = await _context.Set<Radical>().ToListAsync();
-            foreach (var r in radicais)
+
+            // 3. Significados dos Radicais (Lendo a tabela radical_meaning)
+            var radicalMeanings = await _context.Set<RadicalMeaning>().ToListAsync();
+            foreach (var rm in radicalMeanings)
             {
-                string key = "radical_" + r.Id;
+                int lId = rm.IdLanguage ?? 0;
+                if (lId == 0) continue;
+                string key = "radical_" + rm.IdRadical;
                 if (!dictMeanings.ContainsKey(key)) dictMeanings[key] = new Dictionary<int, List<string>>();
+                if (!dictMeanings[key].ContainsKey(lId)) dictMeanings[key][lId] = new List<string>();
 
-                if (!dictMeanings[key].ContainsKey(viewModel.LinguaPadraoId)) dictMeanings[key][viewModel.LinguaPadraoId] = new List<string>();
-
-                // ATENÇÃO: Se a sua tabela de radicais não tiver uma coluna "Meaning", troque "r.Meaning" pelo nome correto (ex: r.Name, r.Gloss, etc.)
-                // Como os radicais geralmente não têm tabela de idioma separada, atrelamos à língua padrão.
-                string significadoRadical = r.RadicalMeanings ?? ""; // Ajuste a propriedade aqui se der erro!
-                dictMeanings[key][viewModel.LinguaPadraoId].Add(significadoRadical);
+                // Usamos "Descrition" porque é o nome exato da coluna no seu script SQL
+                dictMeanings[key][lId].Add(rm.Description);
             }
+            // ==============================================================
+            // BUSCA DO STATUS DE CONCLUSÃO (CHECK VERDE)
+            // ==============================================================
+            var kanjiWithReading = new HashSet<int>();
+            var kanjiMeaningComplete = new Dictionary<int, HashSet<int>>();
+            var radicalComplete = new Dictionary<int, HashSet<int>>();
 
-            // Anexa as traduções aos Itens DTO
+            // Super Query ADO.NET para extrair as 3 informações de uma vez só!
+            string sqlCheck = @"
+                -- 1. Kanjis com Mnemônico de Leitura Ativo
+                SELECT DISTINCT kr.kanji_id
+                FROM kanji_reading kr
+                JOIN kanji_reading_mnemonic krm ON kr.id = krm.kanji_reading_id
+                WHERE krm.is_active = true;
+
+                -- 2. Kanjis com Mnemônico de Significado Ativo (Por Língua)
+                SELECT km.kanji_id, km.id_language
+                FROM kanji_meaning km
+                JOIN kanji_meaning_mnemonic kmm ON km.id = kmm.kanji_meaning_id
+                WHERE kmm.is_active = true
+                GROUP BY km.kanji_id, km.id_language;
+
+                -- 3. Radicais com Mnemônico de Significado Ativo (Por Língua)
+                SELECT rm.id_radical, rm.id_language
+                FROM radical_meaning rm
+                JOIN radical_meaning_mnemonic rmm ON rm.id = rmm.radical_meaning_id
+                WHERE rmm.is_active = true
+                GROUP BY rm.id_radical, rm.id_language;
+            ";
+
+            using (var cmd = _context.Database.GetDbConnection().CreateCommand())
+            {
+                cmd.CommandText = sqlCheck;
+                if (cmd.Connection.State != System.Data.ConnectionState.Open) await cmd.Connection.OpenAsync();
+
+                using (var readerCheck = await cmd.ExecuteReaderAsync())
+                {
+                    // Lendo Bloco 1 (Leituras Kanji)
+                    while (await readerCheck.ReadAsync()) kanjiWithReading.Add(readerCheck.GetInt32(0));
+
+                    // Lendo Bloco 2 (Significados Kanji)
+                    if (await readerCheck.NextResultAsync())
+                    {
+                        while (await readerCheck.ReadAsync())
+                        {
+                            int kId = readerCheck.GetInt32(0);
+                            int lId = readerCheck.IsDBNull(1) ? 0 : readerCheck.GetInt32(1);
+                            if (!kanjiMeaningComplete.ContainsKey(kId)) kanjiMeaningComplete[kId] = new HashSet<int>();
+                            kanjiMeaningComplete[kId].Add(lId);
+                        }
+                    }
+
+                    // Lendo Bloco 3 (Significados Radical)
+                    if (await readerCheck.NextResultAsync())
+                    {
+                        while (await readerCheck.ReadAsync())
+                        {
+                            int rId = readerCheck.GetInt32(0);
+                            int lId = readerCheck.IsDBNull(1) ? 0 : readerCheck.GetInt32(1);
+                            if (!radicalComplete.ContainsKey(rId)) radicalComplete[rId] = new HashSet<int>();
+                            radicalComplete[rId].Add(lId);
+                        }
+                    }
+                }
+            }
+            // ==============================================================
+
+            // Anexa as traduções aos Itens que vão para a tela
+            // Anexa as traduções aos Itens que vão para a tela
             foreach (var item in itens)
             {
                 string dictKey = item.Tipo + "_" + item.OriginalId;
@@ -193,6 +264,27 @@ namespace Denkiishi_v2.Controllers
                     {
                         item.Meanings[kvp.Key] = string.Join(", ", kvp.Value);
                     }
+                }
+
+                // NOVO: Calcula se o item está 100% completo em cada língua!
+                foreach (var lang in linguas)
+                {
+                    bool isComplete = false;
+                    if (item.Tipo == "radical")
+                    {
+                        // Radical só precisa de significado na língua
+                        isComplete = radicalComplete.ContainsKey(item.OriginalId) && radicalComplete[item.OriginalId].Contains(lang.Id);
+                    }
+                    else if (item.Tipo == "kanji")
+                    {
+                        // Kanji precisa ter a Leitura E o Significado na língua
+                        bool hasReading = kanjiWithReading.Contains(item.OriginalId);
+                        bool hasMeaning = kanjiMeaningComplete.ContainsKey(item.OriginalId) && kanjiMeaningComplete[item.OriginalId].Contains(lang.Id);
+                        isComplete = hasReading && hasMeaning;
+                    }
+                    // (O Vocabulário fica para o futuro, deixamos false por padrão)
+
+                    item.IsComplete[lang.Id] = isComplete;
                 }
             }
             // ==============================================================

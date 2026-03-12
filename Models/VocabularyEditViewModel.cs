@@ -7,6 +7,8 @@
         public int Level { get; set; }
         public string MeaningsCsv { get; set; } // Facilitar exibição rápida
 
+        public Boolean IsActive { get; set; }
+
         // Lista de Kanjis que compõem este vocabulário
         public List<Kanji> KanjiComponents { get; set; } = new List<Kanji>();
 

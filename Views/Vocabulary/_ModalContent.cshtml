@@ -3,8 +3,14 @@
 <div class="modal-header bg-vocab text-white" style="background-color: #6f42c1;">
     <div class="d-flex align-items-center gap-3">
         <span class="badge bg-white text-dark rounded-pill">Nível @Model.Nivel</span>
+        <div class="form-check form-switch fs-4 mb-0 d-flex align-items-center" style="margin-top: 8px;">
+            <input class="form-check-input cursor-pointer shadow-sm m-0" type="checkbox" role="switch" name="switchModalActive"
+                   @(Model.IsActive ? "checked" : "") onchange="toggleVocabActive(@Model.Id, this)">
+        </div>
         <h5 class="modal-title m-0 fw-bold">Detalhes do Vocabulário</h5>
+     
     </div>
+  
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 
@@ -20,6 +26,8 @@
                          onclick="abrirPainelReadings()" title="Gerenciar Leituras">
                         <div class="card-body py-4">
                             <h1 class="display-3 fw-bold text-dark mb-0">@Model.Palavra</h1>
+                            <div class="d-flex align-items-center gap-3">
+                            </div>
                             <div class="mt-2 d-flex flex-wrap justify-content-center gap-2">
                                 @foreach (var r in Model.ListaReadings)
                                 {
@@ -36,10 +44,12 @@
                                     </span>
                                 }
                             </div>
-                            <div class="mt-3">@foreach (var tag in Model.ClassesGramaticais) {
-                            <span class="badge bg-secondary me-1">@tag</span>
-                                                        }
-</div>
+                            <div class="mt-3">
+                                @foreach (var tag in Model.ClassesGramaticais)
+                                {
+                                    <span class="badge bg-secondary me-1">@tag</span>
+                                }
+                            </div>
                         </div>
                     </div>
                     <div class="card shadow-sm">
@@ -58,6 +68,30 @@
                                     </a>
                                 }
                             </div>
+                        </div>
+                    </div>
+                    <div class="card shadow-sm">
+                    </div>
+
+                    <div class="card shadow-sm mt-3 border-vocab" style="border-width: 2px;">
+                        <div class="card-header bg-white fw-bold text-vocab small text-uppercase">
+                            <i class="fa fa-chess-board"></i> Arquiteto do Conhecimento
+                        </div>
+                        <div class="card-body p-3 bg-light">
+                            <label class="form-label small fw-bold text-muted mb-1">Círculo Associado:</label>
+                            <select class="form-select form-select-sm fw-bold shadow-sm" id="selectCirculoVocab" onchange="salvarCirculoVocab(@Model.Id, this.value)">
+                                @foreach (var c in Model.CirculosDisponiveis)
+                                {
+                                    if (Model.CirculoAtualId.ToString() == c.Value)
+                                    {
+                                        <option value="@c.Value" selected>@c.Text</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@c.Value">@c.Text</option>
+                                    }
+                                }
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -268,6 +302,6 @@
 
 <input type="hidden" id="dadosSyntaxHighlight" value='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ListaSyntax.Select(s => new { code = s.Code, textColor = s.TextColor, bgColor = s.BackgroundColor, bold = s.IsBold, italic = s.IsItalic, underline = s.IsUnderline })))' />
 
-        </div>
-    </div>
+</div>
+</div>
 </div>

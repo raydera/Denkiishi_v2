@@ -71,5 +71,6 @@ namespace Denkiishi_v2.Models
         public int CircleId { get; set; }
         public string TooltipExtra { get; set; }
         public Dictionary<int, string> Meanings { get; set; } = new Dictionary<int, string>();
+        public Dictionary<int, bool> IsComplete { get; set; } = new Dictionary<int, bool>();
     }
 } 

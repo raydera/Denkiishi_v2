@@ -15,6 +15,10 @@ namespace Denkiishi_v2.Models
         [Required]
         public string Name { get; set; }
 
+        [Column("language_id")]
+        [Required]
+        public int language_id { get; set; }
+
         // Navegação para a tabela de mapa
         public ICollection<VocabularyPartOfSpeechMap> VocabularyMaps { get; set; }
     }

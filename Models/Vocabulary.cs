@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Denkiishi_v2.Models;
 
@@ -12,10 +13,12 @@ public partial class Vocabulary
     public string Characters { get; set; } = null!;
 
     public short? Level { get; set; }
+    [Column("is_active")]
+    public bool IsActive { get; set; } = true;
 
     //public string? MeaningMnemonic { get; set; }
 
-   // public string? ReadingMnemonic { get; set; }
+    // public string? ReadingMnemonic { get; set; }
 
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
 

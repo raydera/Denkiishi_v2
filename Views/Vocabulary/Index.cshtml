@@ -7,35 +7,51 @@
 </div>
 
 <div class="container mt-4">
-    <div class="row align-items-center mb-4 border-bottom pb-3">
-        <div class="col-md-4">
+    <div class="row mb-3 mt-2">
+        <div class="col-12">
             <h2 class="text-vocab m-0 fw-bold"><i class="fa fa-book-open"></i> Vocabulário</h2>
-        </div>
-
-        <div class="col-md-3">
-            <div class="input-group">
-                <span class="input-group-text bg-white border-end-0"><i class="fa fa-search text-muted"></i></span>
-                <input type="text" id="inputBusca" class="form-control border-start-0" placeholder="Buscar palavra, kana ou significado..." onkeyup="filtrarVocab()">
-            </div>
-        </div>
-
-        <div class="col-md-5 text-end mt-2 mt-md-0">
-            <form asp-action="Index" method="get" class="d-inline-flex align-items-center gap-3">
-
-                <div class="d-flex align-items-center">
-                    <label class="me-2 fw-bold small text-muted"><i class="fa fa-filter"></i> Sistema:</label>
-                    <select name="categoriaId" asp-items="Model.CategoriasDisponiveis" class="form-select w-auto fw-bold text-vocab border-vocab" onchange="this.form.submit()"></select>
-                </div>
-
-                <div class="d-flex align-items-center">
-                    <label class="me-2 fw-bold small text-muted">Idioma:</label>
-                    <select name="linguaId" asp-items="Model.LinguasDisponiveis" class="form-select w-auto" onchange="this.form.submit()"></select>
-                </div>
-
-            </form>
         </div>
     </div>
 
+    <form asp-action="Index" method="get" class="mb-4 border-bottom pb-3">
+
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+
+            <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 flex-grow-1" style="max-width: 800px;">
+
+                <div class="input-group shadow-sm flex-grow-1">
+                    <span class="input-group-text bg-white border-end-0"><i class="fa fa-search text-muted"></i></span>
+                    <input type="text" id="inputBusca" class="form-control border-start-0" placeholder="Buscar palavra, kana, significado..." onkeyup="filtrarVocab()" onkeypress="if(event.keyCode == 13) return false;">
+                </div>
+
+                <div class="d-flex align-items-center">
+                    <label class="me-2 fw-bold small text-muted text-nowrap"><i class="fa fa-bullseye"></i> Arquiteto:</label>
+                    <select name="circuloId" asp-items="Model.CirculosDisponiveis" class="form-select form-select-sm fw-bold text-success border-success shadow-sm" style="min-width: 180px;" onchange="this.form.submit()"></select>
+                </div>
+
+            </div>
+
+            <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+                <div class="form-check form-switch fs-6 mb-0 d-flex align-items-center bg-white p-2 rounded shadow-sm border">
+                    <input class="form-check-input cursor-pointer m-0 me-2" type="checkbox" role="switch" asp-for="SwitchModalVocabulario" onchange="this.form.submit()">
+                    <label class="form-check-label fw-bold small text-muted text-nowrap" asp-for="SwitchModalVocabulario" style="cursor: pointer;">
+                        <i class="fa fa-link text-primary"></i> Estrito
+                    </label>
+                </div>
+                <div class="d-flex align-items-center">
+                    <label class="me-2 fw-bold small text-muted text-nowrap"><i class="fa fa-filter"></i> Sistema:</label>
+                    <select name="categoriaId" asp-items="Model.CategoriasDisponiveis" class="form-select form-select-sm fw-bold text-vocab border-vocab shadow-sm" style="min-width: 150px;" onchange="this.form.submit()"></select>
+                </div>
+
+                <div class="d-flex align-items-center">
+                    <label class="me-2 fw-bold small text-muted text-nowrap"><i class="fa fa-language"></i> Idioma:</label>
+                    <select name="linguaId" asp-items="Model.LinguasDisponiveis" class="form-select form-select-sm shadow-sm" style="min-width: 120px;" onchange="this.form.submit()"></select>
+                </div>
+
+            </div>
+
+        </div>
+    </form>
     @if (!Model.VocabPorNivel.Any())
     {
         <div class="alert alert-light text-center border mt-5 py-5 text-muted">
@@ -76,15 +92,20 @@
                 <div class="d-flex flex-wrap gap-2">
                     @foreach (var vocab in nivel.Value)
                     {
-                        string classeBotao = vocab.TemTraducao ? "btn-vocab-success" : "btn-outline-secondary";
+                        // A classe ainda verifica o IsActive para pintar de cinza escuro
+                        string classeBotao = vocab.IsActive
+                        ? (vocab.TemTraducao ? "btn-vocab-success" : "btn-outline-secondary")
+                        : "vocab-inactive border-0";
 
                         <button onclick="abrirModal(@vocab.Id)"
                                 class="btn @classeBotao d-flex flex-column justify-content-center align-items-center shadow-sm vocab-btn"
-                                style="min-width: 80px; height: auto; padding: 6px 12px; transition: transform 0.2s, box-shadow 0.2s;"
+                                id="vocab-btn-@vocab.Id"
+                                style="min-width: 80px; height: auto; padding: 6px 12px; transition: all 0.3s;"
                                 title="@(vocab.TemTraducao ? "Traduzido" : "Pendente")"
-                                data-search="@vocab.SearchText">
-                            <span class="fw-bold fs-4 mb-0" style="line-height: 1.2;">@vocab.Palavra</span>
-                            <small class="small text-opacity-75" style="font-size: 0.75rem;">@vocab.LeituraPrincipal</small>
+                                data-search="@vocab.SearchText"
+                                data-is-translated="@vocab.TemTraducao.ToString().ToLower()">
+                            <span class="fw-bold fs-4 mb-0 vocab-palavra" style="line-height: 1.2;">@vocab.Palavra</span>
+                            <small class="small vocab-leitura" style="font-size: 0.75rem; opacity: 0.75;">@vocab.LeituraPrincipal</small>
                         </button>
                     }
                 </div>
@@ -467,6 +488,72 @@
                 } else { alert("Erro ao excluir."); }
             } catch(e) { console.error(e); }
         }
+        // ==========================================
+        // ATIVAR / INATIVAR VOCABULÁRIO (AJAX)
+        // ==========================================
+        async function toggleVocabActive(id, checkboxEl) {
+            const isActive = checkboxEl.checked;
+            const btn = document.getElementById('vocab-btn-' + id);
+
+            checkboxEl.disabled = true; // Previne duplo clique
+
+            try {
+                const response = await fetch(`/Vocabulary/ToggleActive?id=${id}&isActive=${isActive}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const temTraducao = btn.getAttribute('data-is-translated') === 'true';
+
+                    // Limpa as classes de cor atuais
+                    btn.classList.remove('vocab-inactive', 'btn-vocab-success', 'btn-outline-secondary', 'border-0');
+
+                    if (isActive) {
+                        // Volta à cor original dependendo se está traduzido ou não
+                        if (temTraducao) btn.classList.add('btn-vocab-success');
+                        else btn.classList.add('btn-outline-secondary');
+                    } else {
+                        // Aplica o tema escuro
+                        btn.classList.add('vocab-inactive', 'border-0');
+                    }
+                } else {
+                    checkboxEl.checked = !isActive;
+                    alert('Erro ao atualizar o status do vocabulário.');
+                }
+            } catch (e) {
+                console.error("Erro na comunicação:", e);
+                checkboxEl.checked = !isActive;
+                alert('Erro de conexão com o servidor.');
+            } finally {
+                checkboxEl.disabled = false;
+            }
+        }
+        // ==========================================
+        // ASSOCIAR AO ARQUITETO (CÍRCULOS)
+        // ==========================================
+        async function salvarCirculoVocab(vocabId, circleId) {
+            const selectEl = document.getElementById('selectCirculoVocab');
+            selectEl.disabled = true; // Desativa enquanto salva
+
+            try {
+                const response = await fetch(`/Vocabulary/AssociarCirculo?vocabId=${vocabId}&circleId=${circleId}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    // Feedback visual bonitinho de sucesso
+                    selectEl.classList.add('is-valid');
+                    setTimeout(() => selectEl.classList.remove('is-valid'), 2000);
+                } else {
+                    alert('Erro ao associar o círculo.');
+                }
+            } catch (e) {
+                console.error("Erro:", e);
+                alert('Erro de conexão ao salvar.');
+            } finally {
+                selectEl.disabled = false; // Ativa novamente
+            }
+        }
     </script>
 }
 
@@ -517,5 +604,35 @@
     .btn-outline-secondary:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    /* ========================================== */
+    /* EFEITO DE VOCABULÁRIO INATIVO              */
+    /* ========================================== */
+    .vocab-inactive {
+        background-color: #495057 !important; /* Cinza escuro */
+        color: #f8f9fa !important; /* Texto claro */
+        opacity: 0.85;
+    }
+
+        .vocab-inactive .vocab-palavra,
+        .vocab-inactive .vocab-leitura {
+            color: #e9ecef !important; /* Força os textos internos a ficarem brancos */
+        }
+
+        .vocab-inactive:hover {
+            background-color: #343a40 !important; /* Fica ainda mais escuro ao passar o mouse */
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+        }
+
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    /* Reduz o tamanho do switch Bootstrap para não tapar a palavra */
+    .form-switch .form-check-input {
+        width: 1.5em;
+        height: 0.75em;
+        margin-top: 0.1em;
     }
 </style>

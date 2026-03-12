@@ -1,0 +1,214 @@
+﻿@model Denkiishi_v2.Models.LessonDashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard de Estudo";
+}
+
+<div class="container mt-4 mb-5 pb-5">
+
+    <div class="row mb-5 justify-content-center">
+        <div class="col-md-8 d-flex align-items-center justify-content-center gap-3">
+            <div style="width: 150px; height: 150px; flex-shrink: 0; cursor: pointer; mix-blend-mode: multiply;" title="Fazer carinho no Beroaldo!">
+                <lottie-player id="beroaldoLottie"
+                               src="/Animation/Beroaldo_banheira.json"
+                               background="transparent"
+                               speed="1"
+                               style="width: 100%; height: 100%;"
+                               loop
+                               autoplay>
+                </lottie-player>
+            </div>
+
+            <div class="bg-white p-3 rounded-4 shadow-sm position-relative border border-primary border-opacity-25">
+                <h4 class="fw-bold text-primary mb-1">Olá! Eu sou o Beroaldo! 🐾</h4>
+                <p class="text-muted m-0 fs-5">Selecione os ítens de conhecimento abaixo para montarmos o seu pacote de materializações de hoje.</p>
+
+                <div style="position: absolute; left: -12px; top: 30px; width: 0; height: 0; border-top: 12px solid transparent; border-bottom: 12px solid transparent; border-right: 12px solid white; z-index: 2;"></div>
+                <div style="position: absolute; left: -14px; top: 30px; width: 0; height: 0; border-top: 12px solid transparent; border-bottom: 12px solid transparent; border-right: 12px solid rgba(13, 110, 253, 0.25); z-index: 1;"></div>
+            </div>
+
+        </div>
+    </div>
+
+    @foreach (var mandala in Model.Mandalas)
+    {
+        <div class="card shadow-sm mb-4 border-0" style="border-radius: 15px; overflow: hidden;">
+            <div class="card-header text-white p-3" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <h4 class="mb-0 fw-bold"><i class="fa fa-water me-2"></i> Mandala @mandala.Ordem: @mandala.Nome</h4>
+            </div>
+
+            <div class="card-body bg-light p-4">
+                @foreach (var circulo in mandala.Circulos)
+                {
+                    <div class="mb-4">
+                        <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">
+                            <i class="fa fa-dot-circle me-1"></i> Círculo @circulo.Ordem: @circulo.Nome
+                        </h6>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var item in circulo.Itens)
+                            {
+                                // Define as cores com base no tipo
+                                string cssClass = "";
+                                if (item.Tipo == "radical") cssClass = "btn-outline-warning text-dark";
+                                else if (item.Tipo == "kanji") cssClass = "btn-outline-success";
+                                else if (item.Tipo == "vocab") cssClass = "btn-outline-primary vocab-pill";
+
+                                // O ID que o JS vai recolher (Ex: kanji_3)
+                                string compositeId = $"{item.Tipo}_{item.IdOriginal}";
+
+                                <button type="button"
+                                        class="btn @cssClass btn-student-item d-flex align-items-center justify-content-center shadow-sm position-relative"
+                                        id="btn-@compositeId"
+                                        onclick="toggleSelecao('@compositeId', this)">
+
+                                    <span class="fw-bold fs-4">@item.Caractere</span>
+
+                                    <i class="fa fa-check-circle position-absolute check-icon d-none" style="top: -6px; right: -6px; font-size: 16px;"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+<div id="actionBar" class="fixed-bottom bg-white shadow-lg border-top py-3 transform-hide" style="z-index: 1050; transition: transform 0.3s ease-out;">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="m-0 fw-bold text-dark"><span id="lblContador" class="text-primary">0</span> Itens Selecionados</h5>
+            <small class="text-muted">Pronto para iniciar a materialização?</small>
+        </div>
+
+        <form asp-action="StartSession" method="post" id="formIniciarLicao">
+            <div id="hiddenInputsContainer"></div>
+            <button type="button" class="btn btn-primary btn-lg rounded-pill fw-bold shadow px-5" onclick="iniciarLicao()">
+                <i class="fa fa-play me-2"></i> Iniciar Lição
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    /* Estilo Base dos Botões de Item */
+    .btn-student-item {
+        width: 45px;
+        height: 45px;
+        border-width: 2px;
+        border-radius: 10px;
+        transition: all 0.2s ease;
+        background-color: white;
+    }
+
+    /* Pílula para Vocabulário */
+    .vocab-pill {
+        width: auto !important;
+        min-width: 45px;
+        padding: 0 15px;
+        border-radius: 20px;
+    }
+
+    /* ESTADO SELECIONADO */
+    .item-selected {
+        transform: scale(1.05);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15) !important;
+    }
+
+        /* Cores forçadas quando selecionado */
+        .item-selected.btn-outline-warning {
+            background-color: #ffc107 !important;
+            color: #000 !important;
+        }
+
+        .item-selected.btn-outline-success {
+            background-color: #198754 !important;
+            color: #fff !important;
+        }
+
+        .item-selected.btn-outline-primary {
+            background-color: #0d6efd !important;
+            color: #fff !important;
+        }
+
+        /* Cor do ícone de Check */
+        .item-selected.btn-outline-warning .check-icon {
+            color: #d39e00;
+        }
+
+        .item-selected.btn-outline-success .check-icon {
+            color: #0f5132;
+        }
+
+        .item-selected.btn-outline-primary .check-icon {
+            color: #0a58ca;
+        }
+
+    /* Barra Inferior Oculta */
+    .transform-hide {
+        transform: translateY(100%);
+    }
+
+    .transform-show {
+        transform: translateY(0);
+    }
+</style>
+
+@section Scripts {
+
+    <script src="https://unpkg.com/@@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+    <script>
+        // Array global para guardar os itens que o aluno selecionou
+        let itensSelecionados = [];
+
+        function toggleSelecao(idComposto, btnElement) {
+            const index = itensSelecionados.indexOf(idComposto);
+
+            if (index === -1) {
+                // SELECIONAR
+                itensSelecionados.push(idComposto);
+                btnElement.classList.add('item-selected');
+                btnElement.querySelector('.check-icon').classList.remove('d-none');
+            } else {
+                // DESELECIONAR
+                itensSelecionados.splice(index, 1);
+                btnElement.classList.remove('item-selected');
+                btnElement.querySelector('.check-icon').classList.add('d-none');
+            }
+
+            atualizarBarraAcao();
+        }
+
+        function atualizarBarraAcao() {
+            const contador = itensSelecionados.length;
+            document.getElementById('lblContador').innerText = contador;
+
+            const actionBar = document.getElementById('actionBar');
+            if (contador > 0) {
+                actionBar.classList.remove('transform-hide');
+                actionBar.classList.add('transform-show');
+            } else {
+                actionBar.classList.remove('transform-show');
+                actionBar.classList.add('transform-hide');
+            }
+        }
+
+        function iniciarLicao() {
+            // Cria inputs escondidos no formulário para cada item selecionado
+            const container = document.getElementById('hiddenInputsContainer');
+            container.innerHTML = ''; // Limpa o anterior
+
+            itensSelecionados.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selectedItems';
+                input.value = id;
+                container.appendChild(input);
+            });
+
+            // Submete o formulário para o Controller (StartSession)
+            document.getElementById('formIniciarLicao').submit();
+        }
+    </script>
+}

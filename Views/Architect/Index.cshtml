@@ -39,10 +39,6 @@
         <div class="collapse" id="collapseErros">
             <div class="card-body bg-white p-0">
                 <ul class="list-group list-group-flush" id="listaAvisos">
-                    <li class="list-group-item py-3 px-4">
-                        O Kanji <span class="badge bg-success">氷</span> (Círculo 2) foi posicionado antes do seu Radical <span class="badge text-dark" style="background-color: #ffc107;">水</span> (Círculo 5).
-                        <a href="#" class="text-danger fw-bold ms-2 text-decoration-none" onclick="moverItemSugerido(event, 202, 5)"><i class="fa fa-magic"></i> Mover Kanji para o Círculo 5</a>
-                    </li>
                 </ul>
             </div>
         </div>
@@ -50,7 +46,7 @@
 
     @foreach (var mandala in Model.Mandalas)
     {
-        // Temática Visual Dinâmica baseada na Ordem da Mandala
+        // Temática Visual Dinâmica
         string bgGradient = "";
         string iconClass = "";
         string circleColor = "";
@@ -67,10 +63,10 @@
         }
 
         <div class="card shadow-lg mb-5 border-0" style="border-radius: 12px; overflow: hidden;">
-            <div class="card-header text-white d-flex align-items-center p-3" style="background: @bgGradient; height: 95px;">
-                <i class="fa @iconClass fa-2x me-3" style="opacity: 0.8;"></i>
+            <div class="card-header text-white d-flex align-items-start p-3" style="background: @bgGradient; height: 100px;">
+                <i class="fa @iconClass fa-2x me-3" style="opacity: 0.8; margin-top: 5px;"></i>
                 <div>
-                    <h4 class="mb-0 fw-bold" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2); font-size: 1.25rem; ">@mandala.Ordem. @mandala.Nome</h4>
+                    <h4 class="mb-0 fw-bold" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.2); font-size: 1.25rem;">@mandala.Ordem. @mandala.Nome</h4>
                     <small class="text-white-50 fw-bold">@mandala.Circulos.Count Círculos</small>
                 </div>
             </div>
@@ -82,7 +78,7 @@
                     {
                         <div class="col">
                             <div class="card h-100 border-0 shadow-sm" style="border-radius: 8px;">
-                                <div class="card-header py-2 bg-white border-bottom fw-bold d-flex justify-content-between align-items-center" style="color: @circleColor; font-size: 0.9rem;  height: 60px;">
+                                <div class="card-header py-2 bg-white border-bottom fw-bold d-flex justify-content-between align-items-center" style="color: @circleColor; font-size: 0.9rem; height: 60px;">
                                     <div><span class="opacity-50 me-1">@circulo.Ordem.</span> @circulo.Nome</div>
                                     <span class="badge rounded-pill circle-counter shadow-sm" style="background-color: @circleColor;">@circulo.Itens.Count</span>
                                 </div>
@@ -100,19 +96,28 @@
                                         {
                                             tooltipText += $"<hr class='my-2 border-secondary' style='opacity: 0.5;'><div class='mt-1 mb-1'><strong style='font-size:0.85rem; color:#4facfe;'>Composição:</strong><br><div style='margin-top:6px; line-height:1.8;'>{item.TooltipExtra}</div></div>";
                                         }
-
                                         tooltipText += "</div>";
 
-                                        <div class="badge-item @tipoClasse position-relative" id="item-@item.IdMapping" data-mapping-id="@item.IdMapping" data-type="@item.Tipo" data-original-id="@item.OriginalId" data-bs-toggle="tooltip" data-bs-html="true" title="@tooltipText"
-                                             @foreach (var m in item.Meanings)
-                                            {
-                                                 @:data-meaning- @m.Key ="@m.Value.Replace("\"", "").ToLower()"
-                                             }
-            >
+                                        // MONTAR ATRIBUTOS DE SIGNIFICADO BLINDADOS
+                                        string meaningAttributes = "";
+                                        foreach (var m in item.Meanings)
+                                        {
+                                            string cleanMeaning = m.Value.Replace("\"", "").Replace("'", "").ToLower();
+                                            meaningAttributes += $"data-meaning-{m.Key}=\"{cleanMeaning}\" ";
+                                        }
+
+                                        // MONTAR ATRIBUTOS DE STATUS COMPLETO (Check Verde)
+                                        string completeAttributes = "";
+                                        foreach (var comp in item.IsComplete)
+                                        {
+                                            completeAttributes += $"data-complete-{comp.Key}=\"{comp.Value.ToString().ToLower()}\" ";
+                                        }
+
+                                        <div class="badge-item @tipoClasse position-relative" id="item-@item.IdMapping" data-mapping-id="@item.IdMapping" data-type="@item.Tipo" data-original-id="@item.OriginalId" data-bs-toggle="tooltip" data-bs-html="true" title="@tooltipText" @Html.Raw(meaningAttributes) @Html.Raw(completeAttributes)>
                                             @item.Texto
 
-                                            <i class="fa fa-exclamation-circle text-danger position-absolute error-icon d-none bg-white rounded-circle" style="top: -5px; right: -5px; font-size: 14px;"></i>
-
+                                            <i class="fa fa-check-circle text-success position-absolute complete-icon d-none bg-white rounded-circle shadow-sm" style="top: -6px; left: -6px; font-size: 14px; z-index: 2;"></i>
+                                            <i class="fa fa-exclamation-circle text-danger position-absolute error-icon d-none bg-white rounded-circle" style="top: -5px; right: -5px; font-size: 14px; z-index: 2;"></i>
                                             <div class="error-hover-card shadow-lg text-start">
                                                 <div class="bg-danger text-white p-2 fw-bold" style="font-size: 0.75rem;"><i class="fa fa-bug"></i> Anomalia</div>
                                                 <div class="p-2 bg-white text-dark error-details" style="font-size: 0.8rem; line-height: 1.2;"></div>
@@ -183,11 +188,15 @@
         background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
         color: white;
         border: 1px solid #4a0ca8;
+        /* NOVAS REGRAS PARA ADAPTAR AO TAMANHO DA PALAVRA */
+        width: auto !important; /* Ignora os 38px fixos da classe pai */
+        min-width: 38px; /* Mantém um tamanho mínimo caso seja só 1 kana */
+        padding: 0 12px !important; /* Dá um respiro lateral para as letras não colarem na borda */
+        border-radius: 16px !important; /* Deixa mais arredondado (estilo pílula/tag) para diferenciar dos Kanjis */
+        font-size: 1.1rem !important; /* Diminui a fonte um pelinho para caber melhor na linha */
     }
 
-    /* ============================================== */
-    /* MÁGICA DO CARD DE ERRO INTERATIVO (HOVER)      */
-    /* ============================================== */
+    /* MÁGICA DO CARD DE ERRO INTERATIVO */
     .error-hover-card {
         display: none;
         position: absolute;
@@ -201,7 +210,7 @@
         border: 2px solid #dc3545;
         cursor: default;
     }
-        /* Setinha do balão */
+
         .error-hover-card::after {
             content: '';
             position: absolute;
@@ -212,19 +221,15 @@
             border-style: solid;
             border-color: #dc3545 transparent transparent transparent;
         }
-        /* Mostra o card quando passa o mouse no item com erro OU quando está com o mouse no próprio card */
-        .badge-item.has-error:hover .error-hover-card,
-        .error-hover-card:hover {
+
+        .badge-item.has-error:hover .error-hover-card, .error-hover-card:hover {
             display: block;
         }
 
-    /* Esconde o card se estivermos arrastando a peça */
-    .sortable-ghost .error-hover-card,
-    .sortable-drag .error-hover-card {
+    .sortable-ghost .error-hover-card, .sortable-drag .error-hover-card {
         display: none !important;
     }
 
-    /* Animação do item pulsando em vermelho */
     @@keyframes blink-red {
         0%, 100% {
             box-shadow: 0 0 0px red;
@@ -239,18 +244,25 @@
     .has-error {
         animation: blink-red 1.5s infinite;
     }
+    /* EFEITO DE CÍRCULO 100% COMPLETO */
+    .circle-complete {
+        border: 2px solid #20c997 !important; /* Verde bonito */
+        box-shadow: 0 0 12px rgba(32, 201, 151, 0.3) !important;
+        transition: all 0.3s ease-in-out;
+    }
 </style>
 
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Inicializa Tooltips padrão
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl, { trigger: 'hover', animation: false })
-        });
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Inicializa Tooltips padrão
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl, { trigger: 'hover', animation: false })
+            });
 
-        // Inicializa Drag and Drop
+            // Inicializa Drag and Drop
             var circleContainers = document.querySelectorAll('.sortable-list');
             circleContainers.forEach(function (container) {
                 new Sortable(container, {
@@ -260,191 +272,184 @@
                     dragClass: 'sortable-drag',
                     onChoose: function (evt) {
                         const tooltip = bootstrap.Tooltip.getInstance(evt.item);
-                        if(tooltip) tooltip.hide();
+                        if (tooltip) tooltip.hide();
                     },
-                    // Dispara quando muda a ordem DENTRO do mesmo círculo
+                    onEnd: function (evt) {
+                        atualizarContadoresEBordas();
+                    },
                     onUpdate: async function (evt) {
                         await salvarOrdemCirculo(evt.to);
-                        validarMatriz(); // Revalida por precaução
+                        validarMatriz();
                     },
-                    // Dispara quando um item é jogado num NOVO círculo
                     onAdd: async function (evt) {
-                        atualizarContadores();
+                        atualizarContadoresEBordas();
                         await salvarOrdemCirculo(evt.to);
-
-                        // Opcional: Atualiza a ordem do círculo de onde o item saiu para tapar o "buraco" sequencial
                         await salvarOrdemCirculo(evt.from);
-
                         validarMatriz();
                     }
                 });
             });
+            validarMatriz();
+            filtrarArquiteto(); // Adicione esta linha para acender os Checks!
+        });
 
-        // Roda a validação assim que a tela abre
-        validarMatriz();
-    });
+        // SALVAR ORDEM EXATA DO CÍRCULO
+        async function salvarOrdemCirculo(circuloElement) {
+            const circleId = circuloElement.getAttribute('data-circle');
+            const items = circuloElement.querySelectorAll('.badge-item');
+            const mappingIds = Array.from(items).map(item => parseInt(item.getAttribute('data-mapping-id')));
 
-    // =====================================
-    // O MOTOR DE REGRAS REAL
-    // =====================================
-    async function validarMatriz() {
-        const btn = document.getElementById('btnValidar');
-        const icon = btn.innerHTML;
-        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Validando...';
-        btn.disabled = true;
-
-        try {
-            const response = await fetch('/Architect/ValidateMatrix');
-            const erros = await response.json();
-
-            // 1. Limpa todos os erros antigos da tela
-            document.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
-            document.querySelectorAll('.error-icon').forEach(el => el.classList.add('d-none'));
-            const listaAvisos = document.getElementById('listaAvisos');
-            listaAvisos.innerHTML = '';
-
-            // 2. Se não houver erros, mostra sucesso e esconde painel
-            if(erros.length === 0) {
-                document.getElementById('painelAvisos').classList.add('d-none');
-                btn.classList.remove('btn-outline-danger');
-                btn.classList.add('btn-outline-success');
-                setTimeout(() => { btn.classList.add('btn-outline-danger'); btn.classList.remove('btn-outline-success'); }, 2000);
-            }
-            // 3. Se houver erros, desenha eles na tela
-            else {
-                document.getElementById('painelAvisos').classList.remove('d-none');
-                document.getElementById('contadorErros').innerText = erros.length;
-
-                erros.forEach(err => {
-                    const itemDom = document.getElementById('item-' + err.mappingId);
-                    if (itemDom) {
-                        // Ativa o visual de erro
-                        itemDom.classList.add('has-error');
-                        const iconEl = itemDom.querySelector('.error-icon');
-                        if(iconEl) iconEl.classList.remove('d-none');
-
-                        // Atualiza o Hover Card dinamicamente
-                        const detalhes = itemDom.querySelector('.error-details');
-                        if (detalhes) {
-                            detalhes.innerHTML = `
-                                O Kanji <strong>${err.kanjiText}</strong> necessita do(s) Radical(is) <span class="badge bg-warning text-dark">${err.radicals}</span>.<br>
-                                Nível exigido: <strong>Círculo ${err.suggestedSeq}</strong>.<br>
-                                <button class="btn btn-sm btn-outline-danger w-100 mt-2 fw-bold" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})">
-                                    Corrigir para Círculo ${err.suggestedSeq}
-                                </button>
-                            `;
-                        }
-
-                        // Adiciona na Sanfona Superior
-                        listaAvisos.innerHTML += `
-                            <li class="list-group-item py-3 px-4">
-                                O Kanji <span class="badge bg-success">${err.kanjiText}</span> (Círculo ${err.kanjiSeq}) foi posicionado antes do seu Radical <span class="badge text-dark" style="background-color: #ffc107;">${err.radicals}</span> (Círculo ${err.suggestedSeq}).
-                                <a href="#" class="text-danger fw-bold ms-2 text-decoration-none" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})">
-                                    <i class="fa fa-magic"></i> Mover para Círculo ${err.suggestedSeq}
-                                </a>
-                            </li>
-                        `;
-                    }
+            try {
+                const response = await fetch('/Architect/UpdateCircleOrder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ CircleId: parseInt(circleId), MappingIds: mappingIds })
                 });
-            }
-        } catch(e) { console.error("Falha ao validar", e); }
-        finally {
-            btn.innerHTML = icon;
-            btn.disabled = false;
+            } catch (e) { console.error("Erro ao salvar", e); }
         }
-    }
 
-    // Função de Auto-Ajuste
-         async function moverItemSugerido(e, mappingId, novoCircleId) {
-             e.preventDefault();
+        // MOTOR DE REGRAS
+        async function validarMatriz() {
+            const btn = document.getElementById('btnValidar');
+            const icon = btn.innerHTML;
+            btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Validando...';
+            btn.disabled = true;
 
-             const item = document.getElementById('item-' + mappingId);
-             const containerDestino = document.querySelector(`[data-circle="${novoCircleId}"]`);
+            try {
+                const response = await fetch('/Architect/ValidateMatrix');
+                const erros = await response.json();
 
-             if (item && containerDestino) {
-                 // Remove o erro visual
-                 item.classList.remove('has-error');
-                 const icon = item.querySelector('.error-icon');
-                 if(icon) icon.classList.add('d-none');
+                document.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
+                document.querySelectorAll('.error-icon').forEach(el => el.classList.add('d-none'));
+                const listaAvisos = document.getElementById('listaAvisos');
+                listaAvisos.innerHTML = '';
 
-                 // Move o elemento no HTML magicamente
-                 const containerOrigem = item.closest('.circle-container');
-                 containerDestino.appendChild(item);
-
-                 // Esconde o painel global (mock)
-                 document.getElementById('painelAvisos').classList.add('d-none');
-
-                 // Salva a ordem do Círculo de Origem e do de Destino
-                 atualizarContadores();
-                 await salvarOrdemCirculo(containerOrigem);
-                 await salvarOrdemCirculo(containerDestino);
-
-                 validarMatriz();
-             }
-         }
-    // =====================================
-        // FILTRO DE PESQUISA EM TEMPO REAL
-        // =====================================
-        function filtrarArquiteto() {
-            const termo = document.getElementById('inputFiltroArquiteto').value.toLowerCase().trim();
-            const itens = document.querySelectorAll('.badge-item');
-
-            itens.forEach(item => {
-                // Pega o caractere principal
-                const textoItem = item.innerText.toLowerCase();
-
-                // Pega o texto do Tooltip (onde temos os Radicais que o compõem)
-                // O Bootstrap guarda o título original no atributo 'data-bs-original-title' após a inicialização
-                let textoTooltip = item.getAttribute('data-bs-original-title') || item.getAttribute('title') || '';
-                textoTooltip = textoTooltip.toLowerCase();
-
-                if (termo === "" || textoItem.includes(termo) || textoTooltip.includes(termo)) {
-                    // Se bater com a pesquisa (ou se a pesquisa estiver vazia), deixa normal
-                    item.style.opacity = '1';
-                    item.style.transform = 'scale(1)';
-                    item.style.pointerEvents = 'auto'; // Permite arrastar
+                if (erros.length === 0) {
+                    document.getElementById('painelAvisos').classList.add('d-none');
+                    btn.classList.remove('btn-outline-danger');
+                    btn.classList.add('btn-outline-success');
+                    setTimeout(() => { btn.classList.add('btn-outline-danger'); btn.classList.remove('btn-outline-success'); }, 2000);
                 } else {
-                    // Se não bater, deixa "apagado" / fantasma no fundo
-                    item.style.opacity = '0.15';
-                    item.style.transform = 'scale(0.95)';
-                    item.style.pointerEvents = 'none'; // Impede de interagir com os fantasmas
+                    document.getElementById('painelAvisos').classList.remove('d-none');
+                    document.getElementById('contadorErros').innerText = erros.length;
+
+                    erros.forEach(err => {
+                        const itemDom = document.getElementById('item-' + err.mappingId);
+                        if (itemDom) {
+                            itemDom.classList.add('has-error');
+                            const iconEl = itemDom.querySelector('.error-icon');
+                            if (iconEl) iconEl.classList.remove('d-none');
+
+                            const detalhes = itemDom.querySelector('.error-details');
+                            if (detalhes) {
+                                detalhes.innerHTML = `O Kanji <strong>${err.kanjiText}</strong> necessita do(s) Radical(is) <span class="badge bg-warning text-dark">${err.radicals}</span>.<br>Nível exigido: <strong>Círculo ${err.suggestedSeq}</strong>.<br><button class="btn btn-sm btn-outline-danger w-100 mt-2 fw-bold" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})">Corrigir para Círculo ${err.suggestedSeq}</button>`;
+                            }
+
+                            listaAvisos.innerHTML += `<li class="list-group-item py-3 px-4">O Kanji <span class="badge bg-success">${err.kanjiText}</span> (Círculo ${err.kanjiSeq}) foi posicionado antes do seu Radical <span class="badge text-dark" style="background-color: #ffc107;">${err.radicals}</span> (Círculo ${err.suggestedSeq}). <a href="#" class="text-danger fw-bold ms-2 text-decoration-none" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})"><i class="fa fa-magic"></i> Mover para Círculo ${err.suggestedSeq}</a></li>`;
+                        }
+                    });
                 }
-            });
-        }
-       // =====================================
-        // ATUALIZAÇÃO DOS CONTADORES
-        // =====================================
-        function atualizarContadores() {
-            document.querySelectorAll('.circle-container').forEach(container => {
-                const count = container.querySelectorAll('.badge-item').length;
-                const counterBadge = container.closest('.card').querySelector('.circle-counter');
-                if (counterBadge) counterBadge.innerText = count;
-            });
+            } catch (e) { console.error("Falha ao validar", e); }
+            finally { btn.innerHTML = icon; btn.disabled = false; }
         }
 
+        // Função de Auto-Ajuste
+        async function moverItemSugerido(e, mappingId, novoCircleId) {
+            e.preventDefault();
+            const item = document.getElementById('item-' + mappingId);
+            const containerDestino = document.querySelector(`[data-circle="${novoCircleId}"]`);
+
+            if (item && containerDestino) {
+                item.classList.remove('has-error');
+                const icon = item.querySelector('.error-icon');
+                if (icon) icon.classList.add('d-none');
+
+                const containerOrigem = item.closest('.circle-container');
+                containerDestino.appendChild(item);
+
+                document.getElementById('painelAvisos').classList.add('d-none');
+
+                atualizarContadoresEBordas();
+                await salvarOrdemCirculo(containerOrigem);
+                await salvarOrdemCirculo(containerDestino);
+                validarMatriz();
+            }
+        }
+
+        // FILTROS
         // =====================================
-        // FILTRO INTELIGENTE (IGNORA ACENTOS)
-        // =====================================
-        // Esta função transforma "Água" em "agua", permitindo pesquisas flexíveis
+          // ATUALIZAÇÃO DOS CONTADORES E BORDAS
+          // =====================================
+          function atualizarContadoresEBordas() {
+              const langId = document.getElementById('selectLinguaArquiteto').value;
+
+              document.querySelectorAll('.circle-container').forEach(container => {
+                  const itens = container.querySelectorAll('.badge-item');
+                  const count = itens.length;
+
+                  // 1. Atualiza a bolinha do contador
+                  const counterBadge = container.closest('.card').querySelector('.circle-counter');
+                  if (counterBadge) counterBadge.innerText = count;
+
+                  // 2. Verifica se TODOS os itens estão completos
+                  const card = container.closest('.card'); // O cartão que envolve o círculo
+
+                  if (count > 0) {
+                      let todosCompletos = true;
+                      itens.forEach(item => {
+                          if (item.getAttribute('data-complete-' + langId) !== 'true') {
+                              todosCompletos = false;
+                          }
+                      });
+
+                      // Aplica ou remove a borda verde brilhante
+                      if (todosCompletos) {
+                          card.classList.remove('border-0');
+                          card.classList.add('circle-complete');
+                      } else {
+                          card.classList.remove('circle-complete');
+                          card.classList.add('border-0');
+                      }
+                  } else {
+                      // Se o círculo estiver vazio, tira a borda
+                      card.classList.remove('circle-complete');
+                      card.classList.add('border-0');
+                  }
+              });
+          }
+
         function removerAcentos(texto) {
             return texto ? texto.normalize('NFD').replace(/[\u0300-\u036f]/g, "") : "";
         }
 
         function filtrarArquiteto() {
             const termoOriginal = document.getElementById('inputFiltroArquiteto').value.toLowerCase().trim();
-            const termo = removerAcentos(termoOriginal); // Termo limpo sem acentos
+            const termo = removerAcentos(termoOriginal);
             const langId = document.getElementById('selectLinguaArquiteto').value;
             const itens = document.querySelectorAll('.badge-item');
 
             itens.forEach(item => {
                 const textoItem = removerAcentos(item.innerText.toLowerCase());
-
                 let textoTooltip = item.getAttribute('data-bs-original-title') || item.getAttribute('title') || '';
                 textoTooltip = removerAcentos(textoTooltip.toLowerCase());
 
                 let significado = item.getAttribute('data-meaning-' + langId) || '';
+                if (!significado) {
+                    for (let attr of item.attributes) {
+                        if (attr.name.startsWith('data-meaning-')) significado += attr.value + ' ';
+                    }
+                }
                 significado = removerAcentos(significado.toLowerCase());
 
+                // LIGA/DESLIGA O CHECK VERDE SE O ITEM ESTIVER COMPLETO NO IDIOMA SELECIONADO
+                const isComplete = item.getAttribute('data-complete-' + langId) === 'true';
+                const completeIcon = item.querySelector('.complete-icon');
+                if (completeIcon) {
+                    if (isComplete) completeIcon.classList.remove('d-none');
+                    else completeIcon.classList.add('d-none');
+                }
+
+                // Oculta/Mostra pela pesquisa
                 if (termo === "" || textoItem.includes(termo) || textoTooltip.includes(termo) || significado.includes(termo)) {
                     item.style.opacity = '1';
                     item.style.transform = 'scale(1)';
@@ -455,32 +460,7 @@
                     item.style.pointerEvents = 'none';
                 }
             });
+            atualizarContadoresEBordas();
         }
-        // =====================================
-        // SALVAR ORDEM EXATA DO CÍRCULO
-        // =====================================
-        async function salvarOrdemCirculo(circuloElement) {
-            const circleId = circuloElement.getAttribute('data-circle');
-            const items = circuloElement.querySelectorAll('.badge-item');
-
-            // Monta um Array apenas com os IDs na ordem exata em que estão na tela
-            const mappingIds = Array.from(items).map(item => parseInt(item.getAttribute('data-mapping-id')));
-
-            try {
-                const response = await fetch('/Architect/UpdateCircleOrder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        CircleId: parseInt(circleId),
-                        MappingIds: mappingIds
-                    })
-                });
-
-                if (!response.ok) {
-                    console.error("Erro ao salvar ordem.");
-                }
-            } catch (e) {
-                console.error("Erro de conexão ao salvar", e);
-            }
-        }
-</script>
+    </script>
+}

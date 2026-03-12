@@ -1,0 +1,345 @@
+﻿@model Denkiishi_v2.Models.LessonSessionViewModel
+@{
+    ViewData["Title"] = "Lição";
+    Layout = "_Layout"; // Oculte a navbar no futuro se quiser imersão total: Layout = null;
+}
+
+<div class="lesson-container bg-light d-flex flex-column min-vh-100 pb-5">
+
+    <div class="fixed-top bg-white shadow-sm" style="z-index: 1040;">
+        <div class="container d-flex justify-content-between align-items-center py-2">
+            <a href="/" class="text-muted text-decoration-none fs-4" title="Sair da Lição"><i class="fa fa-times"></i></a>
+            <div class="flex-grow-1 mx-4">
+                <div class="d-flex justify-content-between mb-1 small fw-bold text-muted">
+                    <span>Progresso</span>
+                    <span id="lblProgresso">1 / @Model.Itens.Count</span>
+                </div>
+                <div class="progress" style="height: 8px; border-radius: 10px;">
+                    <div id="barraProgresso" class="progress-bar bg-success" role="progressbar" style="width: 0%; transition: width 0.4s ease;"></div>
+                </div>
+            </div>
+            <a href="#" class="text-muted text-decoration-none fs-5" title="Configurações"><i class="fa fa-cog"></i></a>
+        </div>
+    </div>
+
+    <div id="circuloFixo" class="shadow-lg d-flex justify-content-center align-items-center"
+         style="position: fixed; top: 75px; right: 20px; width: 65px; height: 65px; border-radius: 50%; z-index: 1035; opacity: 0; transform: translateY(-20px) scale(0.5); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none;">
+        <span id="textoCirculoFixo" class="fw-bold" style="font-size: 2.2rem; line-height: 1;"></span>
+    </div>
+
+    <div style="height: 70px;"></div>
+
+    <div class="container max-w-md mx-auto flex-grow-1 d-flex flex-column mt-3">
+
+        @for (int i = 0; i < Model.Itens.Count; i++)
+        {
+            var item = Model.Itens[i];
+
+            // Define as cores baseadas no tipo!
+            string corFundo = "";
+            string corTexto = "text-white";
+            string icone = "";
+
+            if (item.Tipo == "radical") { corFundo = "linear-gradient(135deg, #ffd147 0%, #ffb600 100%)"; corTexto = "text-dark"; icone = "fa-cube"; }
+            else if (item.Tipo == "kanji") { corFundo = "linear-gradient(135deg, #2ed8a7 0%, #15b380 100%)"; icone = "fa-cubes"; }
+            else { corFundo = "linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)"; icone = "fa-book-open"; }
+
+            <div class="lesson-card" id="card-@i" style="display: @(i == 0 ? "block" : "none");">
+
+                <div class="card shadow-lg border-0 mb-4" style="border-radius: 20px; overflow: hidden;">
+                    <div class="card-header border-0 d-flex justify-content-between align-items-center py-2" style="background: @corFundo;">
+                        <span class="badge bg-white bg-opacity-25 @corTexto rounded-pill text-uppercase"><i class="fa @icone"></i> @item.Tipo</span>
+                    </div>
+                    <div class="card-body text-center py-5 d-flex justify-content-center align-items-center" style="background: @corFundo; min-height: 250px;">
+                        <h1 class="display-1 fw-bold @corTexto" style="font-size: 8rem; text-shadow: 2px 4px 10px rgba(0,0,0,0.2);">@item.Caractere</h1>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+
+                    <div class="col-12">
+                        <div class="card shadow-sm border-0 h-100" style="border-radius: 15px;">
+                            <div class="card-body p-4">
+                                <h6 class="text-uppercase text-muted fw-bold mb-3"><i class="fa fa-language text-primary"></i> Significado</h6>
+
+                                @if (item.ClassesGramaticais != null && item.ClassesGramaticais.Any())
+                                {
+                                    <div class="mb-3">
+                                        @foreach (var classe in item.ClassesGramaticais)
+                                        {
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border me-1 fw-normal" style="font-size: 0.85rem;">@classe</span>
+                                        }
+                                    </div>
+                                }
+
+                                <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                                    @if (item.Significados != null && item.Significados.Any())
+                                    {
+                                        @foreach (var sig in item.Significados)
+                                        {
+                                            if (sig.IsPrimary)
+                                            {
+                                                <span class="fs-3 fw-bold text-dark me-2 border-bottom border-primary border-3 pb-1">@sig.Texto</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary border fs-6 fw-normal">@sig.Texto</span>
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="fs-3 fw-bold text-dark">@item.SignificadoPrincipal</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (item.Tipo == "radical" && item.KanjisRelacionados != null && item.KanjisRelacionados.Any())
+                    {
+                        <div class="col-12">
+                            <div class="card shadow-sm border-0 h-100" style="border-radius: 15px;">
+                                <div class="card-body p-4">
+                                    <h6 class="text-uppercase text-muted fw-bold mb-3"><i class="fa fa-cubes text-success"></i> Encontrado nestes Kanjis...</h6>
+
+                                    <div class="d-flex flex-wrap gap-3 mt-2">
+                                        @foreach (var k in item.KanjisRelacionados)
+                                        {
+                                            <div class="d-flex align-items-center bg-light rounded p-2 px-3 border border-success border-opacity-25 shadow-sm">
+                                                <span class="fs-1 fw-bold text-success me-3">@k.Caractere</span>
+                                                <span class="text-muted fw-bold text-uppercase small">@k.Significado</span>
+                                            </div>
+                                        }
+                                    </div>
+                                    <p class="text-muted small mt-3 mb-0"><i class="fa fa-info-circle"></i> Estes são exemplos de Kanjis que você aprenderá no futuro que utilizam este radical.</p>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (item.Tipo != "radical")
+                    {
+                        <div class="col-12">
+                            <div class="card shadow-sm border-0 h-100" style="border-radius: 15px;">
+                                <div class="card-body p-4">
+                                    <h6 class="text-uppercase text-muted fw-bold mb-3"><i class="fa fa-volume-up text-success"></i> Leitura</h6>
+
+                                    <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                                        @if (item.Leituras != null && item.Leituras.Any())
+                                        {
+                                            @foreach (var lei in item.Leituras)
+                                            {
+                                                if (lei.IsPrimary)
+                                                {
+                                                    <span class="fs-3 fw-bold text-dark me-2 border-bottom border-success border-3 pb-1">@lei.Texto</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border fs-6 fw-normal">@lei.Texto</span>
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="fs-3 fw-bold text-dark">@item.LeituraPrincipal</span>
+                                        }
+                                    </div>
+
+                                    <div class="p-3 bg-light rounded text-dark" style="font-size: 1.1rem; line-height: 1.6;">
+                                        @if (!string.IsNullOrEmpty(item.MnemonicLeitura))
+                                        {
+                                            @Html.Raw(item.MnemonicLeitura)
+                                        }
+                                        else
+                                        {
+                                            <em>Sem história de leitura cadastrada.</em>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    @if (item.Tipo == "vocab" && item.KanjisRelacionados != null && item.KanjisRelacionados.Any())
+                    {
+                        <div class="col-12">
+                            <div class="card shadow-sm border-0 h-100" style="border-radius: 15px;">
+                                <div class="card-body p-4">
+                                    <h6 class="text-uppercase text-muted fw-bold mb-3"><i class="fa fa-puzzle-piece text-warning"></i> Kanjis que compõem a palavra</h6>
+
+                                    <div class="d-flex flex-wrap gap-3 mt-2">
+                                        @foreach (var k in item.KanjisRelacionados)
+                                        {
+                                            <div class="d-flex align-items-center bg-light rounded p-2 px-3 border border-warning border-opacity-25 shadow-sm">
+                                                <span class="fs-1 fw-bold text-warning me-3">@k.Caractere</span>
+                                                <span class="text-muted fw-bold text-uppercase small">@k.Significado</span>
+                                            </div>
+                                        }
+                                    </div>
+                                    <p class="text-muted small mt-3 mb-0"><i class="fa fa-lightbulb"></i> Entender as partes ajuda a memorizar o todo!</p>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (item.VocabulariosRelacionados != null && item.VocabulariosRelacionados.Any())
+                    {
+                        <div class="col-12">
+                            <div class="card shadow-sm border-0 h-100" style="border-radius: 15px;">
+                                <div class="card-body p-4">
+                                    <h6 class="text-uppercase text-muted fw-bold mb-3"><i class="fa fa-book-open text-primary"></i> Utilizado nestas palavras...</h6>
+
+                                    <div class="d-flex flex-wrap gap-3 mt-2">
+                                        @foreach (var v in item.VocabulariosRelacionados)
+                                        {
+                                            <div class="d-flex align-items-center bg-light rounded p-2 px-3 border border-primary border-opacity-25 shadow-sm">
+                                                <span class="fs-2 fw-bold text-primary">@v.Caractere</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                </div> <div style="height: 100px;"></div>
+            </div>
+        }
+    </div>
+
+    <div class="fixed-bottom bg-white border-top shadow-lg p-3" style="z-index: 1030;">
+        <div class="container max-w-md mx-auto text-end">
+            <button id="btnProximo" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold shadow-sm" onclick="proximoItem()">
+                Próximo <i class="fa fa-arrow-right ms-2"></i>
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<input type="hidden" id="totalItens" value="@Model.Itens.Count" />
+
+<style>
+    /* Limita a largura no desktop para ficar parecido com celular e focado */
+    .max-w-md {
+        max-width: 800px;
+    }
+
+    /* Suaviza as transições dos cards */
+    .lesson-card {
+        animation: fadeIn 0.4s ease-in-out;
+    }
+
+    /* Estilo para a tag <mark> que vem do seu banco (fallback) */
+    mark {
+        background-color: #ffeeba;
+        padding: 0.1em 0.3em;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .mostrar-circulo {
+        opacity: 1 !important;
+        transform: translateY(0) scale(1) !important;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        let itemAtual = 0;
+        const totalItens = parseInt(document.getElementById('totalItens').value);
+
+        // ==========================================
+        // MÁGICA DO CÍRCULO FLUTUANTE
+        // ==========================================
+        window.addEventListener('scroll', function () {
+            const cardVisivel = document.getElementById('card-' + itemAtual);
+            if (!cardVisivel) return;
+
+            const quadroGrande = cardVisivel.querySelector('.card-body.text-center');
+            const circuloFixo = document.getElementById('circuloFixo');
+
+            // Descobre onde o quadro grande está na tela agora
+            const rect = quadroGrande.getBoundingClientRect();
+
+            // Se a base do quadro grande subir além de 80px (saiu da tela), mostra o círculo!
+            if (rect.bottom < 80) {
+                circuloFixo.classList.add('mostrar-circulo');
+            } else {
+                circuloFixo.classList.remove('mostrar-circulo');
+            }
+        });
+
+        // Função para mudar a cor do círculo dependendo se é Radical, Kanji ou Vocab
+        function prepararCirculoFixo() {
+            const cardVisivel = document.getElementById('card-' + itemAtual);
+            const caractere = cardVisivel.querySelector('h1').innerText;
+            const bg = cardVisivel.querySelector('.card-body.text-center').style.background;
+
+            // O Radical tem texto escuro, os outros têm texto branco
+            const textColorClass = cardVisivel.querySelector('h1').classList.contains('text-dark') ? 'text-dark' : 'text-white';
+
+            const circuloFixo = document.getElementById('circuloFixo');
+            const textoCirculo = document.getElementById('textoCirculoFixo');
+
+            circuloFixo.style.background = bg;
+            textoCirculo.innerText = caractere;
+            textoCirculo.className = 'fw-bold ' + textColorClass;
+        }
+
+        function atualizarProgresso() {
+            const porcentagem = ((itemAtual + 1) / totalItens) * 100;
+            document.getElementById('barraProgresso').style.width = porcentagem + '%';
+            document.getElementById('lblProgresso').innerText = `${itemAtual + 1} / ${totalItens}`;
+
+            // Se for o último item, muda o botão para "Iniciar Quiz"
+            if (itemAtual === totalItens - 1) {
+                const btn = document.getElementById('btnProximo');
+                btn.innerHTML = 'Iniciar Quiz <i class="fa fa-flag-checkered ms-2"></i>';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+            }
+        }
+
+        function proximoItem() {
+            if (itemAtual < totalItens - 1) {
+                // Esconde o atual
+                document.getElementById('card-' + itemAtual).style.display = 'none';
+
+                // Mostra o próximo
+                itemAtual++;
+                document.getElementById('card-' + itemAtual).style.display = 'block';
+
+                // Rola pro topo suavemente
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                atualizarProgresso();
+                prepararCirculoFixo();
+            } else {
+                // Chegou ao fim! Redirecionar para o QUIZ!
+                alert("Redirecionando para o Quiz...");
+                // window.location.href = '/Quiz/Iniciar?sessionId=@Model.SessionId';
+            }
+        }
+
+        // Inicializa a barra no load da página
+        document.addEventListener("DOMContentLoaded", function() {
+            if(totalItens > 0) {
+                atualizarProgresso();
+                prepararCirculoFixo();
+            }
+        });
+    </script>
+}
