@@ -230,11 +230,35 @@ namespace Denkiishi_v2.Controllers
                 .Where(m => idsVocabularios.Contains(m.VocabularyId) && m.LanguageId == idLinguaFinal)
                 .ToListAsync();
 
+            // ==========================================
+            // NOVO: BUSCA OS MNEMÔNICOS EXISTENTES
+            // ==========================================
+            var idsSignificados = significados.Select(s => s.Id).ToList();
+            var idsLeituras = leituras.Select(l => l.Id).ToList();
+
+            var mnemonicosSignificado = await _context.VocabularyMeaningMnemonics
+                .Where(m => idsSignificados.Contains(m.VocabularyMeaningId) && m.IsActive == true)
+                .Select(m => m.VocabularyMeaningId)
+                .Distinct()
+                .ToListAsync();
+
+            var mnemonicosLeitura = await _context.VocabularyReadingMnemonics
+                .Where(m => idsLeituras.Contains(m.VocabularyReadingId) && m.IsActive == true)
+                .Select(m => m.VocabularyReadingId)
+                .Distinct()
+                .ToListAsync();
+            // ==========================================
+
             var listaDtos = new List<VocabularyStatusDto>();
 
             foreach (var item in dadosBase)
             {
                 int vId = item.Id;
+
+                // Filtra o que pertence a esta palavra específica
+                var leitsPalavra = leituras.Where(r => r.VocabularyId == vId).ToList();
+                var sigsPalavra = significados.Where(m => m.VocabularyId == vId).ToList();
+
                 var leituraPrimaria = leituras
                     .Where(r => r.VocabularyId == vId)
                     .OrderByDescending(r => r.IsPrimary)
@@ -246,12 +270,24 @@ namespace Denkiishi_v2.Controllers
                     .Select(m => m.Meaning)
                     .ToList();
 
+                // ==========================================
+                // VERIFICA SE ESTÁ 100% COMPLETO
+                // ==========================================
+                bool temSignificado = sigsPalavra.Any();
+                bool temLeitura = leitsPalavra.Any();
+                bool temMnemSig = sigsPalavra.Any(s => mnemonicosSignificado.Contains(s.Id));
+                bool temMnemLei = leitsPalavra.Any(l => mnemonicosLeitura.Contains(l.Id));
+
+                bool is100PorCento = temSignificado && temLeitura && temMnemSig && temMnemLei;
+                // ==========================================
+
                 listaDtos.Add(new VocabularyStatusDto
                 {
                     Id = vId,
                     Palavra = item.Palavra,
                     LeituraPrincipal = leituraPrimaria ?? "",
                     TemTraducao = significadosDaPalavra.Any(),
+                    IsCompleto = is100PorCento,
                     SearchText = $"{item.Palavra} {leituraPrimaria} {string.Join(" ", significadosDaPalavra)}".ToLower(),
                     NivelCategoria = item.NivelCategoria,
                     IsActive = item.IsActive // PASSA O STATUS PARA A TELA

@@ -21,6 +21,7 @@ namespace Denkiishi_v2.Models
         public string Palavra { get; set; }
         public string LeituraPrincipal { get; set; }
         public string SignificadoPrincipal { get; set; }
+        public bool IsCompleto { get; set; }
         public bool TemTraducao { get; set; }
         public string SearchText { get; set; }
         public string NivelCategoria { get; set; }
