@@ -26,6 +26,7 @@ namespace Denkiishi_v2.Models
         public string SearchText { get; set; }
         public string NivelCategoria { get; set; }
         public bool IsActive { get; set; }
+        public bool AssociadoCirculo { get; set; }
     }
 
     public class VocabularyDetalhesViewModel

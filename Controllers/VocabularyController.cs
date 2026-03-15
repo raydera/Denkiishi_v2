@@ -249,6 +249,33 @@ namespace Denkiishi_v2.Controllers
                 .ToListAsync();
             // ==========================================
 
+            // ==========================================
+            // NOVO: BUSCA SE OS ITENS ESTÃO NO ARQUITETO (CÍRCULOS)
+            // ==========================================
+            var vocabIdsNoArquiteto = new List<int>();
+            if (idsVocabularios.Any())
+            {
+                string idsStr = string.Join(",", idsVocabularios);
+                string sqlCircle = $"SELECT DISTINCT vocabulary_id FROM circle_ue_item WHERE vocabulary_id IN ({idsStr})";
+
+                using (var commandCircle = _context.Database.GetDbConnection().CreateCommand())
+                {
+                    commandCircle.CommandText = sqlCircle;
+                    if (commandCircle.Connection.State != System.Data.ConnectionState.Open)
+                    {
+                        await commandCircle.Connection.OpenAsync();
+                    }
+                    using (var readerCircle = await commandCircle.ExecuteReaderAsync())
+                    {
+                        while (await readerCircle.ReadAsync())
+                        {
+                            vocabIdsNoArquiteto.Add(Convert.ToInt32(readerCircle[0]));
+                        }
+                    }
+                }
+            }
+            // ==========================================
+
             var listaDtos = new List<VocabularyStatusDto>();
 
             foreach (var item in dadosBase)
@@ -271,7 +298,7 @@ namespace Denkiishi_v2.Controllers
                     .ToList();
 
                 // ==========================================
-                // VERIFICA SE ESTÁ 100% COMPLETO
+                // VERIFICA SE ESTÁ 100% COMPLETO E NO ARQUITETO
                 // ==========================================
                 bool temSignificado = sigsPalavra.Any();
                 bool temLeitura = leitsPalavra.Any();
@@ -279,6 +306,7 @@ namespace Denkiishi_v2.Controllers
                 bool temMnemLei = leitsPalavra.Any(l => mnemonicosLeitura.Contains(l.Id));
 
                 bool is100PorCento = temSignificado && temLeitura && temMnemSig && temMnemLei;
+                bool estaNoArquiteto = vocabIdsNoArquiteto.Contains(vId); // NOVA FLAG AQUI
                 // ==========================================
 
                 listaDtos.Add(new VocabularyStatusDto
@@ -286,11 +314,12 @@ namespace Denkiishi_v2.Controllers
                     Id = vId,
                     Palavra = item.Palavra,
                     LeituraPrincipal = leituraPrimaria ?? "",
-                    TemTraducao = significadosDaPalavra.Any(),
+                    TemTraducao = temSignificado,
                     IsCompleto = is100PorCento,
+                    AssociadoCirculo = estaNoArquiteto, // ATRIBUI A NOVA FLAG
                     SearchText = $"{item.Palavra} {leituraPrimaria} {string.Join(" ", significadosDaPalavra)}".ToLower(),
                     NivelCategoria = item.NivelCategoria,
-                    IsActive = item.IsActive // PASSA O STATUS PARA A TELA
+                    IsActive = item.IsActive
                 });
             }
 
@@ -301,12 +330,15 @@ namespace Denkiishi_v2.Controllers
                 CirculoSelecionadoId = idCirculoFinal,
                 CirculosDisponiveis = circulosDisponiveis,
                 VocabPorNivel = listaDtos
-                    .GroupBy(dto => dto.NivelCategoria)
-                    .OrderByDescending(g => int.TryParse(g.Key, out int num) ? num : -1)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.ToList()
-                    )
+                      .GroupBy(dto => dto.NivelCategoria)
+                      .OrderByDescending(g => int.TryParse(g.Key, out int num) ? num : -1)
+                      .ToDictionary(
+                          g => g.Key,
+                          g => g.OrderByDescending(v => v.IsActive)    // 1º: Ativos no topo, Cancelados no fim
+                                .ThenByDescending(v => v.IsCompleto)   // 2º: Dentre os ativos, os 100% Completos vêm primeiro
+                                .ThenBy(v => v.Palavra)                // 3º: Desempata por ordem alfabética (opcional, mas fica lindo!)
+                                .ToList()
+                      )
             };
 
             model.LinguasDisponiveis = await _context.Language.OrderBy(l => l.Description)

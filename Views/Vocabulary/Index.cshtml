@@ -90,24 +90,43 @@
 
             <div class="card-body">
                 <div class="d-flex flex-wrap gap-2">
-                    @foreach (var vocab in nivel.Value)
-                    {
-                        // A classe ainda verifica o IsActive para pintar de cinza escuro
-                        string classeBotao = vocab.IsActive
-                        ? (vocab.TemTraducao ? "btn-vocab-success" : "btn-outline-secondary")
-                        : "vocab-inactive border-0";
+                        @foreach (var vocab in nivel.Value)
+                        {
+                            // A classe ainda verifica o IsActive para pintar de cinza escuro
+                            string classeBotao = vocab.IsActive
+                            ? (vocab.TemTraducao ? "btn-vocab-success" : "btn-outline-secondary")
+                            : "vocab-inactive border-0";
 
-                        <button onclick="abrirModal(@vocab.Id)"
-                                class="btn @classeBotao d-flex flex-column justify-content-center align-items-center shadow-sm vocab-btn"
-                                id="vocab-btn-@vocab.Id"
-                                style="min-width: 80px; height: auto; padding: 6px 12px; transition: all 0.3s;"
-                                title="@(vocab.TemTraducao ? "Traduzido" : "Pendente")"
-                                data-search="@vocab.SearchText"
-                                data-is-translated="@vocab.TemTraducao.ToString().ToLower()">
-                            <span class="fw-bold fs-4 mb-0 vocab-palavra" style="line-height: 1.2;">@vocab.Palavra</span>
-                            <small class="small vocab-leitura" style="font-size: 0.75rem; opacity: 0.75;">@vocab.LeituraPrincipal</small>
-                        </button>
-                    }
+                            <button onclick="abrirModal(@vocab.Id)"
+                                    class="btn @classeBotao d-flex flex-column justify-content-center align-items-center shadow-sm vocab-btn position-relative"
+                                    id="vocab-btn-@vocab.Id"
+                                    style="min-width: 80px; height: auto; padding: 6px 12px; transition: all 0.3s;"
+                                    data-search="@vocab.SearchText"
+                                    data-is-translated="@vocab.TemTraducao.ToString().ToLower()"
+                                    data-is-completo="@vocab.IsCompleto.ToString().ToLower()"
+                                    data-is-associado="@vocab.AssociadoCirculo.ToString().ToLower()">
+
+                                <div id="status-icon-container-@vocab.Id" class="position-absolute shadow-sm align-items-center justify-content-center"
+                                     style="top: -6px; right: -6px; width: 22px; height: 22px; background: white; border-radius: 50%; display: @((vocab.IsCompleto || vocab.AssociadoCirculo) ? "flex" : "none");">
+                                
+                                    @if (vocab.IsCompleto && vocab.AssociadoCirculo)
+                                    {
+                                        <i class="fa-solid fa-check-double text-info" style="font-size: 0.85rem;" title="Completo e no Arquiteto!"></i>
+                                    }
+                                    else if (vocab.IsCompleto && !vocab.AssociadoCirculo)
+                                    {
+                                        <i class="fa-solid fa-check text-success" style="font-size: 0.85rem;" title="100% Completo (Falta alocar)"></i>
+                                    }
+                                    else if (!vocab.IsCompleto && vocab.AssociadoCirculo)
+                                    {
+                                        <i class="fa-solid fa-check-double text-secondary" style="font-size: 0.85rem;" title="No Arquiteto (Faltam dados)"></i>
+                                    }
+                                </div>
+
+                                <span class="fw-bold fs-4 mb-0 vocab-palavra" style="line-height: 1.2;">@vocab.Palavra</span>
+                                <small class="small vocab-leitura" style="font-size: 0.75rem; opacity: 0.75;">@vocab.LeituraPrincipal</small>
+                            </button>
+                        }
                 </div>
             </div>
         </div>
@@ -554,6 +573,39 @@
                 selectEl.disabled = false; // Ativa novamente
             }
         }
+
+                    // Função para atualizar o marcador visual instantaneamente
+            function atualizarMarcadorCirculo(vocabId, estaAssociado) {
+                const btn = document.getElementById(`vocab-btn-${vocabId}`);
+                if (!btn) return;
+
+                // Atualiza o estado gravado no HTML
+                btn.setAttribute('data-is-associado', estaAssociado);
+
+                // Lê os estados atuais
+                const isCompleto = btn.getAttribute('data-is-completo') === 'true';
+                const isAssociado = estaAssociado;
+
+                const iconContainer = document.getElementById(`status-icon-container-${vocabId}`);
+                if (!iconContainer) return;
+
+                iconContainer.innerHTML = ''; // Limpa o ícone antigo
+
+                // Aplica a lógica do WhatsApp
+                if (isCompleto && isAssociado) {
+                    iconContainer.innerHTML = '<i class="fa-solid fa-check-double text-info" style="font-size: 0.85rem;" title="Completo e no Arquiteto!"></i>';
+                    iconContainer.style.display = 'flex';
+                } else if (isCompleto && !isAssociado) {
+                    iconContainer.innerHTML = '<i class="fa-solid fa-check text-success" style="font-size: 0.85rem;" title="100% Completo (Falta alocar)"></i>';
+                    iconContainer.style.display = 'flex';
+                } else if (!isCompleto && isAssociado) {
+                    iconContainer.innerHTML = '<i class="fa-solid fa-check-double text-secondary" style="font-size: 0.85rem;" title="No Arquiteto (Faltam dados)"></i>';
+                    iconContainer.style.display = 'flex';
+                } else {
+                    // Se não está completo nem associado, esconde a bolinha
+                    iconContainer.style.display = 'none';
+                }
+            }
     </script>
 }
 
