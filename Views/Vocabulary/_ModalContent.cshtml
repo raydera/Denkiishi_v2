@@ -44,11 +44,42 @@
                                     </span>
                                 }
                             </div>
-                            <div class="mt-3">
+                            <div class="mt-3 d-flex flex-wrap gap-1 align-items-center justify-content-center">
                                 @foreach (var tag in Model.ClassesGramaticais)
                                 {
-                                    <span class="badge bg-secondary me-1">@tag</span>
+                                    <span class="badge bg-secondary d-flex align-items-center pe-2 py-1 shadow-sm">
+                                        @tag.Nome
+                                        <i class="fa fa-times-circle ms-2" style="cursor: pointer; opacity: 0.7;"
+                                           onclick="event.stopPropagation(); removerClasseVocab(@Model.Id, @tag.PosId)"
+                                           onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7"></i>
+                                    </span>
                                 }
+                                
+                                <div class="position-relative ms-1">
+                                    <span class="badge bg-light text-dark border border-secondary"
+                                          style="cursor:pointer; border-style: dashed !important;"
+                                          onclick="event.stopPropagation(); toggleSelectClasse()">
+                                        <i class="fa fa-plus text-muted"></i> <span class="text-muted">Classe</span>
+                                    </span>
+                                    
+                                    <select id="selectNovaClasse" class="form-select form-select-sm position-absolute shadow"
+                                            style="display:none; top: 120%; left: 50%; transform: translateX(-50%); min-width: 150px; z-index: 1050;"
+                                            onclick="event.stopPropagation();"
+                                            onmousedown="event.stopPropagation();"
+                                            onchange="adicionarClasseVocab(@Model.Id, this.value)">
+                                        
+                                        <option value="">Selecione...</option>
+                                        
+                                        @if (Model.ClassesGramaticaisDisponiveis != null)
+                                        {
+                                            @foreach (var pos in Model.ClassesGramaticaisDisponiveis)
+                                            {
+                                                <option value="@pos.Value">@pos.Text</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                
                             </div>
                         </div>
                     </div>
@@ -108,20 +139,28 @@
                                     <div class="d-flex flex-wrap gap-2 mt-1">
                                         @foreach (var sig in grupo.Significados)
                                         {
-                                            // Cor Verde Menta se for Primary, Cinza se não for
+                                            // Cor principal se for Primary, Cinza se não for
                                             string btnClass = sig.IsPrimary ? "bg-vocab text-white border-vocab shadow-sm" : "bg-light text-dark border";
                                             string jsText = sig.Texto.Replace("'", "\\'"); // Previne quebras no JS
 
-                                            <button onclick="abrirPainelMnemonic(@sig.Id, '@jsText')" class="btn btn-sm @btnClass fs-6 position-relative" style="transition: all 0.2s;">
-                                                @sig.Texto
-                                                @if (sig.IsPrimary)
-                                                {
-                                                    <i class="fa fa-star ms-1 text-warning"></i>
-                                                }
-                                                @if (sig.TemHistoria)
-                                                {
-                                                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-warning border border-light rounded-circle" title="Tem Mnemônico"></span>
-                                                }
+                                            // Adicionamos 'd-flex align-items-center' para o X ficar alinhado ao lado do texto
+                                            <button onclick="abrirPainelMnemonic(@sig.Id, '@jsText')" class="btn btn-sm @btnClass fs-6 position-relative d-flex align-items-center" style="transition: all 0.2s;">
+                                                <span class="me-2">
+                                                    @sig.Texto
+                                                    @if (sig.IsPrimary)
+                                                    {
+                                                        <i class="fa fa-star ms-1 text-warning"></i>
+                                                    }
+                                                    @if (sig.TemHistoria)
+                                                    {
+                                                        <span class="position-absolute top-0 start-100 translate-middle p-1 bg-warning border border-light rounded-circle" title="Tem Mnemônico"></span>
+                                                    }
+                                                </span>
+                                                
+                                                <span onclick="event.stopPropagation(); modalExcluirTraducao(@sig.Id, @(sig.TemHistoria ? "true" : "false"))"
+                                                      class="hover-delete fw-bold"
+                                                      style="font-size: 1.3rem; line-height: 0.8; margin-top: 1px; color: @(sig.IsPrimary ? "white" : "#dc3545");"
+                                                      title="Excluir Tradução">&times;</span>
                                             </button>
                                         }
                                     </div>
@@ -182,7 +221,10 @@
 
                 <div class="card shadow-sm flex-fill border-0">
                     <div class="card-body d-flex flex-column p-0">
-                        <label class="fw-bold mb-2 px-1">Alvo: <span id="labelTraducao" class="text-primary fs-5"></span></label>
+                        <div class="d-flex justify-content-between align-items-center mb-2 px-1 border-bottom pb-2">
+                            <label class="fw-bold m-0">Alvo: <span id="labelTraducao" class="text-primary fs-5"></span></label>
+                                                 
+                        </div>
 
                         <div class="syntax-toolbar d-flex flex-wrap gap-1 p-2 bg-light border rounded-top">
                             <span class="small text-muted align-self-center me-2">Tags:</span>
@@ -300,6 +342,22 @@
     </div>
 </div>
 
+<div class="modal-footer d-flex" id="modalFooterPadrao">
+    <span id="msgErroModal" class="text-danger fw-bold small me-auto shake-text text-truncate" style="display: none; max-width: 50%;"></span>
+    <div class="ms-auto">
+        <div id="footerBtnDefault" class="gap-2" style="display: flex;">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+        
+        <div id="footerBtnConfirm" class="align-items-center gap-2" style="display: none;">
+            <div id="lblMsgExclusao" class="text-end me-2 text-dark fw-bold small">
+                Tem certeza?
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelarExclusao()">Cancelar</button>
+            <button type="button" class="btn btn-sm btn-danger px-3" id="btnConfirmarExclusao">Sim, excluir</button>
+        </div>
+    </div>
+</div>
 <input type="hidden" id="dadosSyntaxHighlight" value='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ListaSyntax.Select(s => new { code = s.Code, textColor = s.TextColor, bgColor = s.BackgroundColor, bold = s.IsBold, italic = s.IsItalic, underline = s.IsUnderline })))' />
 
 </div>

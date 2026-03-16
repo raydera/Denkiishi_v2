@@ -14,6 +14,11 @@ namespace Denkiishi_v2.Models
         public List<SelectListItem> CirculosDisponiveis { get; set; } = new List<SelectListItem>();
         public bool SwitchModalVocabulario { get; set; }
     }
+    public class VocabPartOfSpeechDto
+    {
+        public int PosId { get; set; }
+        public string Nome { get; set; }
+    }
 
     public class VocabularyStatusDto
     {
@@ -40,7 +45,8 @@ namespace Denkiishi_v2.Models
 
         public List<VocabReadingDto> ListaReadings { get; set; } = new List<VocabReadingDto>();
         public List<VocabGrupoTraducaoDto> TraducoesAgrupadas { get; set; } = new();
-        public List<string> ClassesGramaticais { get; set; } = new();
+        public List<VocabPartOfSpeechDto> ClassesGramaticais { get; set; } = new List<VocabPartOfSpeechDto>();
+        public List<SelectListItem> ClassesGramaticaisDisponiveis { get; set; } = new List<SelectListItem>();
         public bool IsActive { get; set; }
 
         // CORRIGIDO AQUI: A classe correta para compor a View

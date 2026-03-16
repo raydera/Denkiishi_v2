@@ -510,101 +510,268 @@
         // ==========================================
         // ATIVAR / INATIVAR VOCABULÁRIO (AJAX)
         // ==========================================
-        async function toggleVocabActive(id, checkboxEl) {
-            const isActive = checkboxEl.checked;
-            const btn = document.getElementById('vocab-btn-' + id);
-
-            checkboxEl.disabled = true; // Previne duplo clique
-
-            try {
-                const response = await fetch(`/Vocabulary/ToggleActive?id=${id}&isActive=${isActive}`, {
+               function toggleVocabActive(id, checkbox) {
+                const isActive = checkbox.checked;
+            
+                // Faz a chamada para o C# via Query String (padrão de GET/POST simples)
+                fetch(`/Vocabulary/ToggleActive?id=${id}&isActive=${isActive}`, {
                     method: 'POST'
-                });
+                }).then(response => {
+                    if (response.ok) {
+                    
+                        // ==========================================
+                        // 1. LÓGICA DO ARQUITETO E DOS MARCADORES
+                        // ==========================================
+                        if (!isActive) {
+                            // Reseta o Dropdown no Modal (se estiver aberto)
+                            let select = document.getElementById('selectCirculoVocab');
+                            if (select) {
+                                select.value = "0"; // Volta para "Não Associado"
+                                select.classList.remove('bg-vocab', 'text-white');
+                                select.classList.add('bg-white', 'text-dark');
+                            }
 
-                if (response.ok) {
-                    const temTraducao = btn.getAttribute('data-is-translated') === 'true';
+                            // Tira o Check Duplo do botão principal
+                            atualizarMarcadorCirculo(id, false);
+                        }
 
-                    // Limpa as classes de cor atuais
-                    btn.classList.remove('vocab-inactive', 'btn-vocab-success', 'btn-outline-secondary', 'border-0');
+                        // ==========================================
+                        // 2. ATUALIZAÇÃO VISUAL DO BOTÃO NA LISTA (A MAGIA!)
+                        // ==========================================
+                        const btn = document.getElementById(`vocab-btn-${id}`);
+                        if (btn) {
+                            // Verifica se ele tem tradução para saber a cor original
+                            const isTranslated = btn.getAttribute('data-is-translated') === 'true';
+                            const container = btn.parentNode; // A "caixa" onde estão todos os botões desta categoria
 
-                    if (isActive) {
-                        // Volta à cor original dependendo se está traduzido ou não
-                        if (temTraducao) btn.classList.add('btn-vocab-success');
-                        else btn.classList.add('btn-outline-secondary');
+                            if (isActive) {
+                                // FICOU ATIVO: Remove o cinza e volta as cores normais
+                                btn.classList.remove('vocab-inactive', 'border-0');
+                                btn.classList.add(isTranslated ? 'btn-vocab-success' : 'btn-outline-secondary');
+                            
+                                // Move para o TOPO da lista instantaneamente
+                                container.insertBefore(btn, container.firstChild);
+                            } else {
+                                // FOI DESATIVADO: Fica cinza escuro
+                                btn.classList.remove('btn-vocab-success', 'btn-outline-secondary');
+                                btn.classList.add('vocab-inactive', 'border-0');
+                            
+                                // Move para o FINAL da lista instantaneamente
+                                container.appendChild(btn);
+                            }
+                        }
+
                     } else {
-                        // Aplica o tema escuro
-                        btn.classList.add('vocab-inactive', 'border-0');
+                        alert("Erro ao alterar o status do vocabulário.");
+                        checkbox.checked = !isActive; // Reverte o botão visualmente no modal em caso de erro
                     }
-                } else {
-                    checkboxEl.checked = !isActive;
-                    alert('Erro ao atualizar o status do vocabulário.');
-                }
-            } catch (e) {
-                console.error("Erro na comunicação:", e);
-                checkboxEl.checked = !isActive;
-                alert('Erro de conexão com o servidor.');
-            } finally {
-                checkboxEl.disabled = false;
+                });
             }
-        }
         // ==========================================
         // ASSOCIAR AO ARQUITETO (CÍRCULOS)
         // ==========================================
-        async function salvarCirculoVocab(vocabId, circleId) {
-            const selectEl = document.getElementById('selectCirculoVocab');
-            selectEl.disabled = true; // Desativa enquanto salva
+            function salvarCirculoVocab(vocabId, circleId) {
+                   const formData = new FormData();
+                   formData.append('vocabId', vocabId);
+                   formData.append('circleId', circleId);
 
-            try {
-                const response = await fetch(`/Vocabulary/AssociarCirculo?vocabId=${vocabId}&circleId=${circleId}`, {
-                    method: 'POST'
-                });
+                   fetch('/Vocabulary/AssociarCirculo', {
+                       method: 'POST',
+                       body: formData
+                   }).then(response => {
+                       if (response.ok) {
+                           // Feedback visual no select dentro do modal
+                           let select = document.getElementById('selectCirculoVocab');
+                           if (select) {
+                               if (circleId == 0) {
+                                   select.classList.remove('bg-vocab', 'text-white');
+                                   select.classList.add('bg-white', 'text-dark');
+                               } else {
+                                   select.classList.remove('bg-white', 'text-dark');
+                                   select.classList.add('bg-vocab', 'text-white');
+                               }
+                           }
 
-                if (response.ok) {
-                    // Feedback visual bonitinho de sucesso
-                    selectEl.classList.add('is-valid');
-                    setTimeout(() => selectEl.classList.remove('is-valid'), 2000);
-                } else {
-                    alert('Erro ao associar o círculo.');
-                }
-            } catch (e) {
-                console.error("Erro:", e);
-                alert('Erro de conexão ao salvar.');
-            } finally {
-                selectEl.disabled = false; // Ativa novamente
-            }
-        }
+                           // =====================================
+                           // ATUALIZA O CHECK DO WHATSAPP NA TELA!
+                           // =====================================
+                           let estaAssociado = (circleId != 0 && circleId != "0");
+                           atualizarMarcadorCirculo(vocabId, estaAssociado);
 
-                    // Função para atualizar o marcador visual instantaneamente
+                       } else {
+                           alert("Erro ao salvar o círculo.");
+                       }
+                   });
+               }
+
+               // Nova função para trocar os ícones em tempo real
             function atualizarMarcadorCirculo(vocabId, estaAssociado) {
                 const btn = document.getElementById(`vocab-btn-${vocabId}`);
                 if (!btn) return;
 
-                // Atualiza o estado gravado no HTML
+                // Atualiza o estado gravado no botão HTML
                 btn.setAttribute('data-is-associado', estaAssociado);
 
-                // Lê os estados atuais
+                // Lê o estado atual
                 const isCompleto = btn.getAttribute('data-is-completo') === 'true';
-                const isAssociado = estaAssociado;
-
                 const iconContainer = document.getElementById(`status-icon-container-${vocabId}`);
                 if (!iconContainer) return;
 
-                iconContainer.innerHTML = ''; // Limpa o ícone antigo
-
                 // Aplica a lógica do WhatsApp
-                if (isCompleto && isAssociado) {
-                    iconContainer.innerHTML = '<i class="fa-solid fa-check-double text-info" style="font-size: 0.85rem;" title="Completo e no Arquiteto!"></i>';
+                if (isCompleto && estaAssociado) {
+                    iconContainer.innerHTML = '<i class="fa fa-check-double text-info" style="font-size: 0.75rem;" title="Completo e no Arquiteto!"></i>';
                     iconContainer.style.display = 'flex';
-                } else if (isCompleto && !isAssociado) {
-                    iconContainer.innerHTML = '<i class="fa-solid fa-check text-success" style="font-size: 0.85rem;" title="100% Completo (Falta alocar)"></i>';
+                } else if (isCompleto && !estaAssociado) {
+                    iconContainer.innerHTML = '<i class="fa fa-check text-success" style="font-size: 0.85rem;" title="100% Completo (Falta alocar)"></i>';
                     iconContainer.style.display = 'flex';
-                } else if (!isCompleto && isAssociado) {
-                    iconContainer.innerHTML = '<i class="fa-solid fa-check-double text-secondary" style="font-size: 0.85rem;" title="No Arquiteto (Faltam dados)"></i>';
+                } else if (!isCompleto && estaAssociado) {
+                    iconContainer.innerHTML = '<i class="fa fa-check-double text-secondary" style="font-size: 0.75rem;" title="No Arquiteto (Faltam dados)"></i>';
                     iconContainer.style.display = 'flex';
                 } else {
-                    // Se não está completo nem associado, esconde a bolinha
+                    // Se não está completo nem associado (ou removeu a associação), some com a bolinha
                     iconContainer.style.display = 'none';
                 }
+            }
+                // ==========================================
+            // FUNÇÃO PARA EXCLUIR A TRADUÇÃO COMPLETA
+            // ==========================================
+            function excluirTraducaoVocab() {
+                // Pega o ID da tradução que está aberta no painel
+                const meaningId = document.getElementById('currentMeaningId').value;
+            
+                if (!meaningId) return;
+
+                // Confirmação de segurança
+                if (confirm("Tem certeza que deseja excluir permanentemente esta tradução e sua história?")) {
+                    const formData = new FormData();
+                    formData.append('meaningId', meaningId);
+
+                    fetch('/Vocabulary/ExcluirTraducao', {
+                        method: 'POST',
+                        body: formData
+                    }).then(response => {
+                        if (response.ok) {
+                            // Pega o ID do vocabulário que está aberto
+                            const vocabId = document.getElementById('vocabId').value;
+                        
+                            // Recarrega o modal instantaneamente para a tradução sumir da tela
+                            abrirModal(vocabId);
+                        } else {
+                            alert("Erro ao excluir a tradução.");
+                        }
+                    });
+                }
+            }
+                // ==========================================
+            // LÓGICA DE EXCLUSÃO PADRONIZADA (IGUAL AO KANJI)
+            // ==========================================
+               let idTraducaoParaExcluir = 0;
+
+            function modalExcluirTraducao(meaningId, temHistoria) {
+                idTraducaoParaExcluir = meaningId;
+            
+                // 1. Verifica se está associado a um Círculo (olhando para o dropdown na tela!)
+                const selectCirculo = document.getElementById('selectCirculoVocab');
+                const estaNoCirculo = selectCirculo && selectCirculo.value !== "0";
+
+                // 2. Constrói a mensagem dinâmica de aviso
+                let msgHTML = "Tem certeza?";
+                if (temHistoria || estaNoCirculo) {
+                    msgHTML += "<br><span class='text-danger' style='line-height: 1.1; font-size: 0.75rem; font-weight: normal; display: block;'>";
+                    if (temHistoria) msgHTML += "⚠️ A história desta tradução também será apagada.<br>";
+                    if (estaNoCirculo) msgHTML += "⚠️ O vocabulário está num Círculo do Arquiteto.";
+                    msgHTML += "</span>";
+                }
+            
+                // 3. Injeta a mensagem no rodapé
+                document.getElementById('lblMsgExclusao').innerHTML = msgHTML;
+            
+                // 4. Esconde os botões normais e mostra a pergunta de confirmação no rodapé
+                document.getElementById('footerBtnDefault').style.display = 'none';
+                document.getElementById('footerBtnConfirm').style.display = 'flex';
+            
+                // Atribui a ação correta ao botão vermelho "Sim, excluir"
+                const btnConfirmar = document.getElementById('btnConfirmarExclusao');
+                btnConfirmar.onclick = function() {
+                    confirmarExclusaoBackend();
+                };
+            }
+
+            function cancelarExclusao() {
+                idTraducaoParaExcluir = 0;
+                // Volta o rodapé ao normal
+                document.getElementById('footerBtnDefault').style.display = 'flex';
+                document.getElementById('footerBtnConfirm').style.display = 'none';
+            }
+
+            function confirmarExclusaoBackend() {
+                if (idTraducaoParaExcluir === 0) return;
+
+                const formData = new FormData();
+                formData.append('meaningId', idTraducaoParaExcluir);
+
+                // Chama aquele método C# ExcluirTraducao que criámos no VocabularyController
+                fetch('/Vocabulary/ExcluirTraducao', {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if (response.ok) {
+                        // Pega o ID do vocabulário atualmente aberto e recarrega o modal
+                        const vocabId = document.getElementById('vocabId').value;
+                        abrirModal(vocabId);
+                    } else {
+                        alert("Erro ao excluir a tradução.");
+                        cancelarExclusao();
+                    }
+                });
+            }
+                // ==========================================
+            // GESTÃO DE CLASSES GRAMATICAIS (CHIPS)
+            // ==========================================
+            function toggleSelectClasse() {
+                const sel = document.getElementById('selectNovaClasse');
+                if (sel.style.display === 'none') {
+                    sel.style.display = 'block';
+                    sel.focus();
+                } else {
+                    sel.style.display = 'none';
+                }
+            }
+
+            function removerClasseVocab(vocabId, posId) {
+                const formData = new FormData();
+                formData.append('vocabId', vocabId);
+                formData.append('posId', posId);
+
+                fetch('/Vocabulary/RemoverClasseGramatical', {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if(response.ok) {
+                        abrirModal(vocabId); // Recarrega o modal para sumir o chip
+                    } else {
+                        alert("Erro ao remover a classe.");
+                    }
+                });
+            }
+
+            function adicionarClasseVocab(vocabId, posId) {
+                if(!posId) return;
+
+                const formData = new FormData();
+                formData.append('vocabId', vocabId);
+                formData.append('posId', posId);
+
+                fetch('/Vocabulary/AdicionarClasseGramatical', {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if(response.ok) {
+                        abrirModal(vocabId); // Recarrega o modal para aparecer o novo chip
+                    } else {
+                        alert("Erro ao adicionar a classe.");
+                    }
+                });
             }
     </script>
 }

@@ -380,7 +380,7 @@ namespace Denkiishi_v2.Controllers
             var classesGramaticais = await (from map in _context.Set<VocabularyPartOfSpeechMap>()
                                             join pos in _context.Set<VocabularyPartOfSpeech>() on map.VocabularyPartOfSpeechId equals pos.Id
                                             where map.VocabularyId == id
-                                            select pos.Name).ToListAsync();
+                                            select new VocabPartOfSpeechDto { PosId = pos.Id, Nome = pos.Name }).ToListAsync();
 
             var kanjisBase = await (from vc in _context.VocabularyCompositions
                                     join k in _context.Kanjis on vc.KanjiId equals k.Id
@@ -471,6 +471,13 @@ namespace Denkiishi_v2.Controllers
             var linguaPtBr = linguas.FirstOrDefault(l => l.Text.Contains("Português") || l.Text.Contains("Portuguese"));
             int linguaPadraoId = linguaPtBr != null ? int.Parse(linguaPtBr.Value) : (linguas.Any() ? int.Parse(linguas.First().Value) : 1);
 
+            var posUsadosIds = classesGramaticais.Select(c => c.PosId).ToList();
+            var classesDisponiveis = await _context.Set<VocabularyPartOfSpeech>()
+                .Where(p => p.language_id == linguaPadraoId && !posUsadosIds.Contains(p.Id))
+                .Select(p => new SelectListItem { Value = p.Id.ToString(), Text = p.Name })
+                .OrderBy(p => p.Text)
+                .ToListAsync();
+
             var listaSyntax = await _context.Set<SyntaxHighlight>().ToListAsync();
 
             // =================================================================
@@ -525,6 +532,7 @@ namespace Denkiishi_v2.Controllers
                 CirculosDisponiveis = circulosDisponiveis,
                 ListaReadings = listaReadings,
                 ClassesGramaticais = classesGramaticais,
+                ClassesGramaticaisDisponiveis = classesDisponiveis,
                 KanjisComponentes = listaKanjis,
                 Sentencas = sentencas,
                 TraducoesAgrupadas = traducoesAgrupadas,
@@ -599,6 +607,30 @@ namespace Denkiishi_v2.Controllers
 
             _context.VocabularyMeanings.Add(newMeaning);
             await _context.SaveChangesAsync();
+            return Ok();
+        }
+        [HttpPost]
+        public async Task<IActionResult> ExcluirTraducao(int meaningId)
+        {
+            var meaning = await _context.VocabularyMeanings.FindAsync(meaningId);
+            if (meaning != null)
+            {
+                // 1. Busca as histórias atreladas
+                var mnemonicos = await _context.VocabularyMeaningMnemonics
+                    .Where(m => m.VocabularyMeaningId == meaningId)
+                    .ToListAsync();
+
+                // Salva a exclusão das histórias PRIMEIRO (Evita o conflito de concorrência)
+                if (mnemonicos.Any())
+                {
+                    _context.VocabularyMeaningMnemonics.RemoveRange(mnemonicos);
+                    await _context.SaveChangesAsync();
+                }
+
+                // 2. Remove a tradução e salva novamente
+                _context.VocabularyMeanings.Remove(meaning);
+                await _context.SaveChangesAsync();
+            }
             return Ok();
         }
 
@@ -773,6 +805,14 @@ namespace Denkiishi_v2.Controllers
             if (vocab == null) return NotFound();
 
             vocab.IsActive = isActive;
+
+            // A MÁGICA AQUI: Se estiver a desativar, corta o vínculo com o Arquiteto!
+            if (!isActive)
+            {
+                await _context.Database.ExecuteSqlRawAsync(
+                    "DELETE FROM circle_ue_item WHERE vocabulary_id = {0}", id);
+            }
+
             await _context.SaveChangesAsync();
 
             return Ok();
@@ -813,6 +853,37 @@ namespace Denkiishi_v2.Controllers
                         await cmd.ExecuteNonQueryAsync();
                     }
                 }
+            }
+            return Ok();
+        }
+        [HttpPost]
+        public async Task<IActionResult> RemoverClasseGramatical(int vocabId, int posId)
+        {
+            var map = await _context.Set<VocabularyPartOfSpeechMap>()
+                .FirstOrDefaultAsync(m => m.VocabularyId == vocabId && m.VocabularyPartOfSpeechId == posId);
+
+            if (map != null)
+            {
+                _context.Set<VocabularyPartOfSpeechMap>().Remove(map);
+                await _context.SaveChangesAsync();
+            }
+            return Ok();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> AdicionarClasseGramatical(int vocabId, int posId)
+        {
+            var existe = await _context.Set<VocabularyPartOfSpeechMap>()
+                .AnyAsync(m => m.VocabularyId == vocabId && m.VocabularyPartOfSpeechId == posId);
+
+            if (!existe)
+            {
+                _context.Set<VocabularyPartOfSpeechMap>().Add(new VocabularyPartOfSpeechMap
+                {
+                    VocabularyId = vocabId,
+                    VocabularyPartOfSpeechId = posId
+                });
+                await _context.SaveChangesAsync();
             }
             return Ok();
         }
