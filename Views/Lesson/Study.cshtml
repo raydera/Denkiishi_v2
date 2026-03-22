@@ -1,4 +1,4 @@
-﻿@model Denkiishi_v2.Models.LessonSessionViewModel
+@model Denkiishi_v2.Models.LessonSessionViewModel
 @{
     ViewData["Title"] = "Lição";
     Layout = "_Layout"; // Oculte a navbar no futuro se quiser imersão total: Layout = null;
@@ -23,7 +23,7 @@
     </div>
 
     <div id="circuloFixo" class="shadow-lg d-flex justify-content-center align-items-center"
-         style="position: fixed; top: 75px; right: 20px; width: 65px; height: 65px; border-radius: 50%; z-index: 1035; opacity: 0; transform: translateY(-20px) scale(0.5); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none;">
+         style="position: fixed; top: 75px; right: 20px; min-width: 65px; height: 65px; padding: 0 15px; border-radius: 50px; z-index: 1035; opacity: 0; transform: translateY(-20px) scale(0.5); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none; white-space: nowrap;">
         <span id="textoCirculoFixo" class="fw-bold" style="font-size: 2.2rem; line-height: 1;"></span>
     </div>
 
@@ -57,20 +57,31 @@
 
                 <div class="row g-4">
 
+                    @if (item.Tipo == "vocab" && item.ClassesGramaticais != null && item.ClassesGramaticais.Any())
+                    {
+                        <div class="col-12">
+                            <div class="card shadow-sm border-0 h-100" style="border-radius: 15px;">
+                                <div class="card-body p-4">
+                                    <h6 class="text-uppercase text-muted fw-bold mb-3">
+                                        <i class="fa fa-tags text-info"></i> Classe Gramatical
+                                    </h6>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @foreach (var classe in item.ClassesGramaticais)
+                                        {
+                                            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 fs-6 fw-bold px-3 py-2">
+                                                @classe
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
                     <div class="col-12">
                         <div class="card shadow-sm border-0 h-100" style="border-radius: 15px;">
                             <div class="card-body p-4">
                                 <h6 class="text-uppercase text-muted fw-bold mb-3"><i class="fa fa-language text-primary"></i> Significado</h6>
-
-                                @if (item.ClassesGramaticais != null && item.ClassesGramaticais.Any())
-                                {
-                                    <div class="mb-3">
-                                        @foreach (var classe in item.ClassesGramaticais)
-                                        {
-                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border me-1 fw-normal" style="font-size: 0.85rem;">@classe</span>
-                                        }
-                                    </div>
-                                }
 
                                 <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
                                     @if (item.Significados != null && item.Significados.Any())
@@ -90,6 +101,17 @@
                                     else
                                     {
                                         <span class="fs-3 fw-bold text-dark">@item.SignificadoPrincipal</span>
+                                    }
+                                </div>
+
+                                <div class="p-3 bg-light rounded text-dark" style="font-size: 1.1rem; line-height: 1.6;">
+                                    @if (!string.IsNullOrEmpty(item.MnemonicSignificado))
+                                    {
+                                        @Html.Raw(item.MnemonicSignificado)
+                                    }
+                                    else
+                                    {
+                                        <em>Sem história de significado cadastrada.</em>
                                     }
                                 </div>
                             </div>
@@ -215,6 +237,14 @@
         </div>
     </div>
 
+    <form id="quizForm" method="post" action="@Url.Action("Start", "Quiz")" style="display: none;">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="sessionId" value="@Model.SessionId" />
+        @foreach (var item in Model.Itens)
+        {
+            <input type="hidden" name="selectedItems" value="@(item.Tipo)_@(item.Id)" />
+        }
+    </form>
 </div>
 
 <input type="hidden" id="totalItens" value="@Model.Itens.Count" />
@@ -328,9 +358,8 @@
                 atualizarProgresso();
                 prepararCirculoFixo();
             } else {
-                // Chegou ao fim! Redirecionar para o QUIZ!
-                alert("Redirecionando para o Quiz...");
-                // window.location.href = '/Quiz/Iniciar?sessionId=@Model.SessionId';
+                // Chegou ao fim! Enviar itens da lição para o Quiz (POST).
+                document.getElementById('quizForm').submit();
             }
         }
 

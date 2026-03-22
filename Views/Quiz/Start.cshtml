@@ -1,0 +1,313 @@
+@model Denkiishi_v2.Models.QuizSessionViewModel
+
+@{
+    ViewData["Title"] = "Quiz";
+    Layout = "_Layout";
+}
+
+<div class="quiz-container bg-light d-flex flex-column min-vh-100 pb-5">
+
+    <div class="fixed-top bg-white shadow-sm" style="z-index: 1040;">
+        <div class="container d-flex justify-content-between align-items-center py-2">
+            <a href="@Url.Action("Index", "Lesson")"
+               class="text-muted text-decoration-none fs-4"
+               title="Sair do Quiz">
+                <i class="fa fa-times"></i>
+            </a>
+
+            <div class="flex-grow-1 mx-4">
+                <div class="d-flex justify-content-between mb-1 small fw-bold text-muted">
+                    <span>Progresso do Quiz</span>
+                    <span id="quizProgressLabel">1 / @Model.Questions.Count</span>
+                </div>
+                <div class="progress" style="height: 8px; border-radius: 10px;">
+                    <div id="quizProgressBar"
+                         class="progress-bar bg-info"
+                         role="progressbar"
+                         style="width: 0%; transition: width 0.4s ease;"></div>
+                </div>
+            </div>
+
+            <span class="badge bg-secondary text-white rounded-pill">
+                Sessão @Model.SessionId
+            </span>
+        </div>
+    </div>
+
+    <div style="height: 70px;"></div>
+
+    <div class="container max-w-md mx-auto flex-grow-1 d-flex flex-column mt-3">
+
+        @for (int i = 0; i < Model.Questions.Count; i++)
+        {
+            var q = Model.Questions[i];
+
+            string bgColor;
+            string textColor = "text-white";
+            string icon;
+
+            if (q.ItemType == "radical")
+            {
+                bgColor = "linear-gradient(135deg, #ffd147 0%, #ffb600 100%)";
+                textColor = "text-dark";
+                icon = "fa-cube";
+            }
+            else if (q.ItemType == "kanji")
+            {
+                bgColor = "linear-gradient(135deg, #2ed8a7 0%, #15b380 100%)";
+                icon = "fa-cubes";
+            }
+            else
+            {
+                bgColor = "linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)";
+                icon = "fa-book-open";
+            }
+
+            <div class="quiz-card" id="quiz-card-@i" style="display:@(i == 0 ? "block" : "none");"
+                 data-character="@q.Character"
+                 data-prompt-type="@q.PromptType"
+                 data-prompt-text="@q.PromptText">
+
+                <div class="card shadow-lg border-0 mb-4" style="border-radius: 20px; overflow: hidden;">
+                    <div class="card-header border-0 d-flex justify-content-between align-items-center py-2"
+                         style="background:@bgColor;">
+                        <span class="badge bg-white bg-opacity-25 @textColor rounded-pill text-uppercase">
+                            <i class="fa @icon"></i> @q.ItemType
+                        </span>
+                        <span class="badge bg-white bg-opacity-25 @textColor rounded-pill text-uppercase">
+                            @q.PromptType
+                        </span>
+                    </div>
+
+                    <div class="card-body text-center py-5 d-flex flex-column justify-content-center align-items-center"
+                         style="background:@bgColor; min-height: 220px;">
+                        <h1 class="display-1 fw-bold @textColor"
+                            style="font-size: 7rem; text-shadow: 2px 4px 10px rgba(0,0,0,0.2);">
+                            @q.Character
+                        </h1>
+
+                        <p class="lead mt-4 text-white fw-bold text-shadow-sm">
+                            @q.PromptText
+                        </p>
+                        @if (!string.IsNullOrWhiteSpace(q.HelperText))
+                        {
+                            <p class="small text-white-50 mb-0">
+                                @q.HelperText
+                            </p>
+                        }
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
+                    <div class="card-body p-4">
+                        <label class="form-label fw-bold text-muted">Sua resposta</label>
+                        <input type="text"
+                               class="form-control form-control-lg quiz-input"
+                               autocomplete="off"
+                               spellcheck="false"
+                               data-question-index="@i"
+                               data-prompt-type="@q.PromptType"
+                               onkeydown="quizHandleKeyDown(event)"
+                               placeholder="Digite aqui sua resposta..." />
+                        <span id="quizCorrectAnswer-@i" class="d-none">@(q.CorrectAnswer ?? "")</span>
+                    </div>
+                </div>
+
+                <div style="height: 90px;"></div>
+            </div>
+        }
+
+    </div>
+
+    <!-- Resultado do quiz: exibido só no final, com validação automática -->
+    <div id="quizResultsSection" class="container max-w-md mx-auto flex-grow-1 mt-3 mb-5" style="display: none;">
+        <div class="card shadow-lg border-0" style="border-radius: 20px;">
+            <div class="card-header bg-success text-white border-0 py-3" style="border-radius: 20px 20px 0 0;">
+                <h5 class="mb-0 fw-bold"><i class="fa fa-flag-checkered me-2"></i>Resultado do Quiz</h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="mb-4">
+                    <span id="quizResultsSummary" class="fw-bold"></span>
+                </p>
+                <div id="quizResultsList"></div>
+                <div class="mt-4 text-center">
+                    <a href="@Url.Action("Index", "Lesson")" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold">
+                        Voltar à lição <i class="fa fa-arrow-left ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="quizFooter" class="fixed-bottom bg-white border-top shadow-lg p-3" style="z-index: 1030;">
+        <div class="container max-w-md mx-auto d-flex justify-content-between align-items-center">
+            <div class="small text-muted">
+                <span id="quizScoreLabel">Acertos: 0 | Erros: 0</span>
+            </div>
+
+            <button id="quizNextButton"
+                    class="btn btn-primary btn-lg rounded-pill px-5 fw-bold shadow-sm"
+                    onclick="quizNext()">
+                Próxima <i class="fa fa-arrow-right ms-2"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="quizTotalQuestions" value="@Model.Questions.Count" />
+
+<style>
+    .max-w-md {
+        max-width: 800px;
+    }
+
+    .quiz-card {
+        animation: quizFadeIn 0.3s ease-in-out;
+    }
+
+    @@keyframes quizFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(15px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+@section Scripts {
+    <script>
+        let quizCurrent = 0;
+        const quizTotal = parseInt(document.getElementById('quizTotalQuestions').value);
+        let quizCorrect = 0;
+        let quizWrong = 0;
+        const quizResults = [];
+
+        function normalizeMeaning(s) {
+            return (s || '').trim().toLowerCase();
+        }
+        function normalizeReading(s) {
+            return (s || '').trim();
+        }
+
+        function quizValidateAnswer(questionIndex) {
+            const input = document.querySelector(`.quiz-input[data-question-index="${questionIndex}"]`);
+            const correctEl = document.getElementById(`quizCorrectAnswer-${questionIndex}`);
+            const promptType = (input && input.getAttribute('data-prompt-type')) || 'meaning';
+            const userAnswer = input ? input.value : '';
+            const correctAnswer = correctEl ? correctEl.textContent : '';
+
+            const userNorm = promptType === 'reading' ? normalizeReading(userAnswer) : normalizeMeaning(userAnswer);
+            const correctNorm = promptType === 'reading' ? normalizeReading(correctAnswer) : normalizeMeaning(correctAnswer);
+            const correct = userNorm === correctNorm;
+
+            return { correct, userAnswer: userAnswer.trim(), correctAnswer: correctAnswer.trim() };
+        }
+
+        function quizRecordAndUpdateScore(questionIndex) {
+            const r = quizValidateAnswer(questionIndex);
+            quizResults[questionIndex] = r;
+            if (r.correct) quizCorrect++; else quizWrong++;
+        }
+
+        function quizUpdateProgress() {
+            const percent = ((quizCurrent + 1) / quizTotal) * 100;
+            document.getElementById('quizProgressBar').style.width = percent + '%';
+            document.getElementById('quizProgressLabel').innerText = `${quizCurrent + 1} / ${quizTotal}`;
+            document.getElementById('quizScoreLabel').innerText = `Acertos: ${quizCorrect} | Erros: ${quizWrong}`;
+
+            const btn = document.getElementById('quizNextButton');
+            if (quizCurrent === quizTotal - 1) {
+                btn.innerHTML = 'Finalizar Quiz <i class="fa fa-flag-checkered ms-2"></i>';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function quizShowResults() {
+            document.querySelector('.quiz-container .container.max-w-md').style.display = 'none';
+            document.getElementById('quizFooter').style.display = 'none';
+            document.querySelector('.quiz-container .fixed-top').style.display = 'none';
+
+            document.getElementById('quizResultsSummary').textContent =
+                `Você acertou ${quizCorrect} de ${quizTotal} pergunta(s).`;
+
+            const listEl = document.getElementById('quizResultsList');
+            listEl.innerHTML = '';
+
+            for (let i = 0; i < quizTotal; i++) {
+                const card = document.getElementById(`quiz-card-${i}`);
+                const r = quizResults[i] || {};
+                const character = card && card.dataset.character ? card.dataset.character : '';
+                const promptText = card && card.dataset.promptText ? card.dataset.promptText : '';
+                const promptType = card && card.dataset.promptType ? card.dataset.promptType : '';
+
+                const row = document.createElement('div');
+                row.className = 'border rounded-3 p-3 mb-3 ' + (r.correct ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10');
+                row.innerHTML =
+                    '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">' +
+                    '<div><span class="fw-bold fs-4 me-2">' + escapeHtml(character) + '</span>' +
+                    '<span class="badge bg-secondary">' + escapeHtml(promptType) + '</span></div>' +
+                    (r.correct
+                        ? '<span class="text-success fw-bold"><i class="fa fa-check-circle"></i> Correto</span>'
+                        : '<span class="text-danger fw-bold"><i class="fa fa-times-circle"></i> Incorreto</span>') +
+                    '</div>' +
+                    '<p class="mb-1 mt-2 small text-muted">' + escapeHtml(promptText) + '</p>' +
+                    '<p class="mb-1"><strong>Sua resposta:</strong> ' + escapeHtml(r.userAnswer || '—') + '</p>' +
+                    (!r.correct ? '<p class="mb-0"><strong>Resposta correta:</strong> ' + escapeHtml(r.correctAnswer || '—') + '</p>' : '');
+                listEl.appendChild(row);
+            }
+
+            document.getElementById('quizResultsSection').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function quizGoTo(index) {
+            if (index < 0 || index >= quizTotal) return;
+
+            const currentCard = document.getElementById(`quiz-card-${quizCurrent}`);
+            const nextCard = document.getElementById(`quiz-card-${index}`);
+            if (!nextCard) return;
+
+            currentCard.style.display = 'none';
+            nextCard.style.display = 'block';
+
+            quizCurrent = index;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            quizUpdateProgress();
+        }
+
+        function quizNext() {
+            quizRecordAndUpdateScore(quizCurrent);
+
+            if (quizCurrent < quizTotal - 1) {
+                quizGoTo(quizCurrent + 1);
+            } else {
+                quizShowResults();
+            }
+        }
+
+        function quizHandleKeyDown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                quizNext();
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            if (quizTotal > 0) {
+                quizUpdateProgress();
+            }
+        });
+    </script>
+}
+
