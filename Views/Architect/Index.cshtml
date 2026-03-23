@@ -71,65 +71,85 @@
                 </div>
             </div>
 
-            <div class="card-body p-4" style="background-color: #f8f9fa;">
-                <div class="row row-cols-1 row-cols-md-3 row-cols-xl-6 g-3">
+          <div class="card-body p-4" style="background-color: #f8f9fa;">
+                
+                <div class="d-flex flex-column gap-4">
 
                     @foreach (var circulo in mandala.Circulos)
                     {
-                        <div class="col">
-                            <div class="card h-100 border-0 shadow-sm" style="border-radius: 8px;">
-                                <div class="card-header py-2 bg-white border-bottom fw-bold d-flex justify-content-between align-items-center" style="color: @circleColor; font-size: 0.9rem; height: 60px;">
-                                    <div><span class="opacity-50 me-1">@circulo.Ordem.</span> @circulo.Nome</div>
-                                    <span class="badge rounded-pill circle-counter shadow-sm" style="background-color: @circleColor;">@circulo.Itens.Count</span>
+                        // Calcula os totais iniciais por tipo
+                        int totalRadicais = circulo.Itens.Count(i => i.Tipo == "radical");
+                        int totalKanjis = circulo.Itens.Count(i => i.Tipo == "kanji");
+                        int totalVocabs = circulo.Itens.Count(i => new[] { "vocab", "vocabulary", "vocabulario" }.Contains(i.Tipo));
+
+                        <div class="card w-100 border-0 shadow-sm" style="border-radius: 8px; background: rgba(255,255,255,0.85);">
+                                
+                            <div class="card-header bg-white border-bottom p-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2" style="border-top-left-radius: 8px; border-top-right-radius: 8px;">
+                                
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="fw-bold" style="color: @circleColor; font-size: 1.1rem;">
+                                        <span class="opacity-50 me-1">@circulo.Ordem.</span> @circulo.Nome
+                                    </div>
+                                    <span class="badge rounded-pill circle-counter shadow-sm fs-6" style="background-color: @circleColor;" title="Total Geral">@circulo.Itens.Count</span>
                                 </div>
-                                <div class="card-body p-2 sortable-list circle-container" data-circle="@circulo.Id" style="min-height: 120px;">
+                                    
+                                <div class="d-flex gap-2">
+                                    <span class="badge rounded-pill shadow-sm radical-counter d-flex align-items-center px-2 py-1" style="background: linear-gradient(135deg, #ffd147 0%, #ffb600 100%); color: #4a3400; font-size: 0.8rem;" title="Radicais">
+                                        <i class="fa fa-cube me-1"></i><span>@totalRadicais</span>
+                                    </span>
+                                    <span class="badge rounded-pill shadow-sm kanji-counter d-flex align-items-center px-2 py-1" style="background: linear-gradient(135deg, #2ed8a7 0%, #15b380 100%); color: white; font-size: 0.8rem;" title="Kanjis">
+                                        <i class="fa fa-cubes me-1"></i><span>@totalKanjis</span>
+                                    </span>
+                                    <span class="badge rounded-pill shadow-sm vocab-counter d-flex align-items-center px-2 py-1" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white; font-size: 0.8rem;" title="Vocabulários">
+                                        <i class="fa fa-book-open me-1"></i><span>@totalVocabs</span>
+                                    </span>
+                                </div>
+                            </div>
 
-                                    @foreach (var item in circulo.Itens)
+                            <div class="card-body p-3 sortable-list circle-container d-flex align-content-start flex-wrap" 
+                                 data-circle="@circulo.Id" 
+                                 style="min-height: 120px;">
+
+                                @foreach (var item in circulo.Itens)
+                                {
+                                    string tipoClasse = item.Tipo == "radical" ? "radical-item" : (item.Tipo == "kanji" ? "kanji-item" : "vocab-item");
+
+                                    string tooltipText = $"<div class='text-start'><strong>{item.Tipo.ToUpper()}: {item.Texto}</strong><br>Círculo atual: {circulo.Ordem}";
+
+                                    if (item.Tipo == "kanji" && !string.IsNullOrEmpty(item.TooltipExtra))
                                     {
-                                        string tipoClasse = item.Tipo == "radical" ? "radical-item" : (item.Tipo == "kanji" ? "kanji-item" : "vocab-item");
+                                        tooltipText += $"<hr class='my-2 border-secondary' style='opacity: 0.5;'><div class='mt-1 mb-1'><strong style='font-size:0.85rem; color:#4facfe;'>Composição:</strong><br><div style='margin-top:6px; line-height:1.8;'>{item.TooltipExtra}</div></div>";
+                                    }
+                                    tooltipText += "</div>";
 
-                                        // Monta o texto base
-                                        string tooltipText = $"<div class='text-start'><strong>{item.Tipo.ToUpper()}: {item.Texto}</strong><br>Círculo atual: {circulo.Ordem}";
-
-                                        // Se for Kanji e tiver Radicais, anexa a composição!
-                                        if (item.Tipo == "kanji" && !string.IsNullOrEmpty(item.TooltipExtra))
-                                        {
-                                            tooltipText += $"<hr class='my-2 border-secondary' style='opacity: 0.5;'><div class='mt-1 mb-1'><strong style='font-size:0.85rem; color:#4facfe;'>Composição:</strong><br><div style='margin-top:6px; line-height:1.8;'>{item.TooltipExtra}</div></div>";
-                                        }
-                                        tooltipText += "</div>";
-
-                                        // MONTAR ATRIBUTOS DE SIGNIFICADO BLINDADOS
-                                        string meaningAttributes = "";
-                                        foreach (var m in item.Meanings)
-                                        {
-                                            string cleanMeaning = m.Value.Replace("\"", "").Replace("'", "").ToLower();
-                                            meaningAttributes += $"data-meaning-{m.Key}=\"{cleanMeaning}\" ";
-                                        }
-
-                                        // MONTAR ATRIBUTOS DE STATUS COMPLETO (Check Verde)
-                                        string completeAttributes = "";
-                                        foreach (var comp in item.IsComplete)
-                                        {
-                                            completeAttributes += $"data-complete-{comp.Key}=\"{comp.Value.ToString().ToLower()}\" ";
-                                        }
-
-                                        <div class="badge-item @tipoClasse position-relative" id="item-@item.IdMapping" data-mapping-id="@item.IdMapping" data-type="@item.Tipo" data-original-id="@item.OriginalId" data-bs-toggle="tooltip" data-bs-html="true" title="@tooltipText" @Html.Raw(meaningAttributes) @Html.Raw(completeAttributes)>
-                                            @item.Texto
-
-                                            <i class="fa fa-check-circle text-success position-absolute complete-icon d-none bg-white rounded-circle shadow-sm" style="top: -6px; left: -6px; font-size: 14px; z-index: 2;"></i>
-                                            <i class="fa fa-exclamation-circle text-danger position-absolute error-icon d-none bg-white rounded-circle" style="top: -5px; right: -5px; font-size: 14px; z-index: 2;"></i>
-                                            <div class="error-hover-card shadow-lg text-start">
-                                                <div class="bg-danger text-white p-2 fw-bold" style="font-size: 0.75rem;"><i class="fa fa-bug"></i> Anomalia</div>
-                                                <div class="p-2 bg-white text-dark error-details" style="font-size: 0.8rem; line-height: 1.2;"></div>
-                                            </div>
-                                        </div>
+                                    string meaningAttributes = "";
+                                    foreach (var m in item.Meanings)
+                                    {
+                                        string cleanMeaning = m.Value.Replace("\"", "").Replace("'", "").ToLower();
+                                        meaningAttributes += $"data-meaning-{m.Key}=\"{cleanMeaning}\" ";
                                     }
 
-                                </div>
+                                    string completeAttributes = "";
+                                    foreach (var comp in item.IsComplete)
+                                    {
+                                        completeAttributes += $"data-complete-{comp.Key}=\"{comp.Value.ToString().ToLower()}\" ";
+                                    }
+
+                                    <div class="badge-item @tipoClasse position-relative" id="item-@item.IdMapping" data-mapping-id="@item.IdMapping" data-type="@item.Tipo" data-original-id="@item.OriginalId" data-bs-toggle="tooltip" data-bs-html="true" title="@tooltipText" @Html.Raw(meaningAttributes) @Html.Raw(completeAttributes)>
+                                        @item.Texto
+
+                                        <i class="fa fa-check-circle text-success position-absolute complete-icon d-none bg-white rounded-circle shadow-sm" style="top: -6px; left: -6px; font-size: 14px; z-index: 2;"></i>
+                                        <i class="fa fa-exclamation-circle text-danger position-absolute error-icon d-none bg-white rounded-circle" style="top: -5px; right: -5px; font-size: 14px; z-index: 2;"></i>
+                                            
+                                        <div class="error-hover-card shadow-lg text-start">
+                                            <div class="bg-danger text-white p-2 fw-bold" style="font-size: 0.75rem;"><i class="fa fa-bug"></i> Anomalia</div>
+                                            <div class="p-2 bg-white text-dark error-details" style="font-size: 0.8rem; line-height: 1.2;"></div>
+                                        </div>
+                                    </div>
+                                }
                             </div>
                         </div>
                     }
-
                 </div>
             </div>
         </div>
@@ -229,6 +249,29 @@
     .sortable-ghost .error-hover-card, .sortable-drag .error-hover-card {
         display: none !important;
     }
+    /* Estilização da barra de rolagem horizontal do painel Kanban */
+    .architect-board {
+        overflow-x: auto;
+        padding-bottom: 15px;
+        scroll-snap-type: x mandatory;
+    }
+    .architect-board::-webkit-scrollbar {
+        height: 12px;
+    }
+    .architect-board::-webkit-scrollbar-track {
+        background: #e9ecef;
+        border-radius: 10px;
+    }
+    .architect-board::-webkit-scrollbar-thumb {
+        background: #adb5bd;
+        border-radius: 10px;
+    }
+    .architect-board::-webkit-scrollbar-thumb:hover {
+        background: #6c757d;
+    }
+    .circle-column {
+        scroll-snap-align: start;
+    }
 
     @@keyframes blink-red {
         0%, 100% {
@@ -250,6 +293,10 @@
         box-shadow: 0 0 12px rgba(32, 201, 151, 0.3) !important;
         transition: all 0.3s ease-in-out;
     }
+    /* CSS DO KANBAN DE CÍRCULOS (HORIZONTAL SCROLL) */
+   
+
+   
 </style>
 
 @section Scripts {
@@ -333,7 +380,7 @@
                     document.getElementById('painelAvisos').classList.remove('d-none');
                     document.getElementById('contadorErros').innerText = erros.length;
 
-                    erros.forEach(err => {
+                 erros.forEach(err => {
                         const itemDom = document.getElementById('item-' + err.mappingId);
                         if (itemDom) {
                             itemDom.classList.add('has-error');
@@ -341,11 +388,28 @@
                             if (iconEl) iconEl.classList.remove('d-none');
 
                             const detalhes = itemDom.querySelector('.error-details');
-                            if (detalhes) {
-                                detalhes.innerHTML = `O Kanji <strong>${err.kanjiText}</strong> necessita do(s) Radical(is) <span class="badge bg-warning text-dark">${err.radicals}</span>.<br>Nível exigido: <strong>Círculo ${err.suggestedSeq}</strong>.<br><button class="btn btn-sm btn-outline-danger w-100 mt-2 fw-bold" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})">Corrigir para Círculo ${err.suggestedSeq}</button>`;
-                            }
+                            
+                            // Formatação inteligente para itens que não estão no arquiteto
+                            const txtNivelExigido = err.suggestedSeq === 999 ? 'Não alocado no Arquiteto' : `Círculo ${err.suggestedSeq}`;
+                            const btnCorrigir = err.suggestedSeq === 999 
+                                ? `<span class="text-danger small fw-bold mt-2 d-block"><i class="fa fa-times-circle"></i> Impossível auto-corrigir. Adicione os requisitos primeiro.</span>` 
+                                : `<button class="btn btn-sm btn-outline-danger w-100 mt-2 fw-bold" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})">Corrigir para Círculo ${err.suggestedSeq}</button>`;
 
-                            listaAvisos.innerHTML += `<li class="list-group-item py-3 px-4">O Kanji <span class="badge bg-success">${err.kanjiText}</span> (Círculo ${err.kanjiSeq}) foi posicionado antes do seu Radical <span class="badge text-dark" style="background-color: #ffc107;">${err.radicals}</span> (Círculo ${err.suggestedSeq}). <a href="#" class="text-danger fw-bold ms-2 text-decoration-none" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})"><i class="fa fa-magic"></i> Mover para Círculo ${err.suggestedSeq}</a></li>`;
+                            // ==========================================
+                            // MENSAGENS DINÂMICAS: VOCAB VS KANJI
+                            // ==========================================
+                            if (err.type === 'vocab') {
+                                if (detalhes) {
+                                    detalhes.innerHTML = `O Vocabulário <strong class="text-primary">${err.kanjiText}</strong> necessita do(s) Kanji(s) <span class="badge bg-success text-white">${err.radicals}</span>.<br>Nível exigido: <strong>${txtNivelExigido}</strong>.<br>${btnCorrigir}`;
+                                }
+                                listaAvisos.innerHTML += `<li class="list-group-item py-3 px-4">O Vocabulário <span class="badge" style="background-color: #6f42c1;">${err.kanjiText}</span> (Círculo ${err.kanjiSeq}) está posicionado antes do seu Kanji base <span class="badge" style="background-color: #20c997;">${err.radicals}</span> (${txtNivelExigido}). <a href="#" class="text-danger fw-bold ms-2 text-decoration-none" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})"><i class="fa fa-magic"></i> Mover</a></li>`;
+                            } 
+                            else {
+                                if (detalhes) {
+                                    detalhes.innerHTML = `O Kanji <strong class="text-success">${err.kanjiText}</strong> necessita do(s) Radical(is) <span class="badge text-dark" style="background-color: #ffb600;">${err.radicals}</span>.<br>Nível exigido: <strong>${txtNivelExigido}</strong>.<br>${btnCorrigir}`;
+                                }
+                                listaAvisos.innerHTML += `<li class="list-group-item py-3 px-4">O Kanji <span class="badge bg-success">${err.kanjiText}</span> (Círculo ${err.kanjiSeq}) está posicionado antes do seu Radical <span class="badge text-dark" style="background-color: #ffb600;">${err.radicals}</span> (${txtNivelExigido}). <a href="#" class="text-danger fw-bold ms-2 text-decoration-none" onclick="moverItemSugerido(event, ${err.mappingId}, ${err.suggestedCircleId})"><i class="fa fa-magic"></i> Mover</a></li>`;
+                            }
                         }
                     });
                 }
@@ -376,47 +440,62 @@
             }
         }
 
-        // FILTROS
+       // =====================================
+        // ATUALIZAÇÃO DOS CONTADORES E BORDAS
         // =====================================
-          // ATUALIZAÇÃO DOS CONTADORES E BORDAS
-          // =====================================
-          function atualizarContadoresEBordas() {
-              const langId = document.getElementById('selectLinguaArquiteto').value;
+        function atualizarContadoresEBordas() {
+            const langId = document.getElementById('selectLinguaArquiteto').value;
 
-              document.querySelectorAll('.circle-container').forEach(container => {
-                  const itens = container.querySelectorAll('.badge-item');
-                  const count = itens.length;
+            document.querySelectorAll('.circle-container').forEach(container => {
+                const itens = container.querySelectorAll('.badge-item');
+                const count = itens.length;
 
-                  // 1. Atualiza a bolinha do contador
-                  const counterBadge = container.closest('.card').querySelector('.circle-counter');
-                  if (counterBadge) counterBadge.innerText = count;
+                // Variáveis para os sub-totais
+                let countRadicais = 0, countKanjis = 0, countVocabs = 0;
 
-                  // 2. Verifica se TODOS os itens estão completos
-                  const card = container.closest('.card'); // O cartão que envolve o círculo
+                // 1. Conta os Subtotais e verifica o status Completo
+                let todosCompletos = count > 0; // Assume true se tiver itens, false se vazio
 
-                  if (count > 0) {
-                      let todosCompletos = true;
-                      itens.forEach(item => {
-                          if (item.getAttribute('data-complete-' + langId) !== 'true') {
-                              todosCompletos = false;
-                          }
-                      });
+              itens.forEach(item => {
+                    const tipo = item.getAttribute('data-type');
+                    
+                    if (tipo === 'radical') countRadicais++;
+                    else if (tipo === 'kanji') countKanjis++;
+                    else if (tipo === 'vocab' || tipo === 'vocabulary' || tipo === 'vocabulario') countVocabs++;
 
-                      // Aplica ou remove a borda verde brilhante
-                      if (todosCompletos) {
-                          card.classList.remove('border-0');
-                          card.classList.add('circle-complete');
-                      } else {
-                          card.classList.remove('circle-complete');
-                          card.classList.add('border-0');
-                      }
-                  } else {
-                      // Se o círculo estiver vazio, tira a borda
-                      card.classList.remove('circle-complete');
-                      card.classList.add('border-0');
-                  }
-              });
-          }
+                    // Regra de borda verde brilhante
+                    if (item.getAttribute('data-complete-' + langId) !== 'true') {
+                        todosCompletos = false;
+                    }
+                });
+
+                // 2. Atualiza a Tela Instantaneamente
+                const card = container.closest('.card');
+                
+                // Total Geral
+                const counterBadge = card.querySelector('.circle-counter');
+                if (counterBadge) counterBadge.innerText = count;
+
+                // Sub-Totais
+                const badgeRadical = card.querySelector('.radical-counter span');
+                if (badgeRadical) badgeRadical.innerText = countRadicais;
+                
+                const badgeKanji = card.querySelector('.kanji-counter span');
+                if (badgeKanji) badgeKanji.innerText = countKanjis;
+                
+                const badgeVocab = card.querySelector('.vocab-counter span');
+                if (badgeVocab) badgeVocab.innerText = countVocabs;
+
+                // 3. Aplica ou remove a borda verde brilhante do Círculo Perfeito
+                if (count > 0 && todosCompletos) {
+                    card.classList.remove('border-0');
+                    card.classList.add('circle-complete');
+                } else {
+                    card.classList.remove('circle-complete');
+                    card.classList.add('border-0');
+                }
+            });
+        }
 
         function removerAcentos(texto) {
             return texto ? texto.normalize('NFD').replace(/[\u0300-\u036f]/g, "") : "";

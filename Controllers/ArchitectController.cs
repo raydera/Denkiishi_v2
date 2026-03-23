@@ -343,54 +343,134 @@ namespace Denkiishi_v2.Controllers
         }
 
         [HttpGet]
+        [HttpGet]
+        [HttpGet]
         public async Task<IActionResult> ValidateMatrix()
         {
             var errors = new List<dynamic>();
 
-            // Esta Super Query cruza o Círculo do Kanji com o Círculo dos seus Radicais.
-            // Retorna apenas os Kanjis onde o Círculo do Kanji < Círculo do Radical.
-            // NOTA: Ajuste "kanji_radical" se o nome da sua tabela de ligação for diferente!
-            string sql = @"
-                WITH KanjiRadicalMax AS (
+            using (var cmd = _context.Database.GetDbConnection().CreateCommand())
+            {
+                if (cmd.Connection.State != System.Data.ConnectionState.Open)
+                    await cmd.Connection.OpenAsync();
+
+                // Usamos UNION ALL para validar Kanjis e Vocabs.
+                // Criámos o "globalReqSeq" para garantir que a comparação de distância funciona entre Mandalas diferentes!
+                cmd.CommandText = @"
+                    -- 1. KANJIS vs RADICAIS
                     SELECT 
-                        k_item.id as kanji_mapping_id, 
-                        k.literal as kanji_text, 
-                        c_k.sequential as kanji_seq,
-                        MAX(c_r.sequential) as suggested_seq,
-                        (SELECT id FROM circle WHERE sequential = MAX(c_r.sequential) LIMIT 1) as suggested_circle_id,
-                        string_agg(r.literal, ', ') as violating_radicals
+                        'kanji' AS type,
+                        k_item.id AS mappingId,
+                        k.literal AS itemText,
+                        c_k.sequential AS itemSeq,
+                        r.literal AS reqText,
+                        c_r.sequential AS reqSeq,
+                        c_r.id AS suggestedCircleId,
+                        COALESCE((m_r.sequential * 1000) + c_r.sequential, 999999) AS globalReqSeq
                     FROM circle_ue_item k_item
                     JOIN kanji k ON k_item.kanji_id = k.id
                     JOIN circle c_k ON k_item.circle_id = c_k.id
-                    JOIN kanji_radical kr ON k.id = kr.kanji_id
+                    JOIN mandala m_k ON c_k.mandala_id = m_k.id
+                    JOIN kanji_radical kr ON k.id = kr.kanji_id  /* AQUI ESTAVA O ERRO (Corrigido para kanji_radical) */
                     JOIN radical r ON kr.radical_id = r.id
-                    JOIN circle_ue_item r_item ON r_item.radical_id = r.id
-                    JOIN circle c_r ON r_item.circle_id = c_r.id
-                    WHERE c_k.sequential < c_r.sequential
-                    GROUP BY k_item.id, k.literal, c_k.sequential
-                )
-                SELECT * FROM KanjiRadicalMax;
-            ";
+                    LEFT JOIN circle_ue_item r_item ON r.id = r_item.radical_id
+                    LEFT JOIN circle c_r ON r_item.circle_id = c_r.id
+                    LEFT JOIN mandala m_r ON c_r.mandala_id = m_r.id
+                    WHERE 
+                        (r_item.id IS NULL) 
+                        OR (m_k.sequential < m_r.sequential) 
+                        OR (m_k.sequential = m_r.sequential AND c_k.sequential < c_r.sequential)
 
-            using (var command = _context.Database.GetDbConnection().CreateCommand())
-            {
-                command.CommandText = sql;
-                await _context.Database.OpenConnectionAsync();
+                    UNION ALL
 
-                using (var reader = await command.ExecuteReaderAsync())
+                    -- 2. VOCABULÁRIOS vs KANJIS
+                    SELECT 
+                        'vocab' AS type,
+                        v_item.id AS mappingId,
+                        v.characters AS itemText,
+                        c_v.sequential AS itemSeq,
+                        k.literal AS reqText,
+                        c_k.sequential AS reqSeq,
+                        c_k.id AS suggestedCircleId,
+                        COALESCE((m_k.sequential * 1000) + c_k.sequential, 999999) AS globalReqSeq
+                    FROM circle_ue_item v_item
+                    JOIN vocabulary v ON v_item.vocabulary_id = v.id
+                    JOIN circle c_v ON v_item.circle_id = c_v.id
+                    JOIN mandala m_v ON c_v.mandala_id = m_v.id
+                    JOIN vocabulary_composition vc ON v.id = vc.vocabulary_id
+                    JOIN kanji k ON vc.kanji_id = k.id
+                    LEFT JOIN circle_ue_item k_item ON k.id = k_item.kanji_id
+                    LEFT JOIN circle c_k ON k_item.circle_id = c_k.id
+                    LEFT JOIN mandala m_k ON c_k.mandala_id = m_k.id
+                    WHERE 
+                        (k_item.id IS NULL) 
+                        OR (m_v.sequential < m_k.sequential) 
+                        OR (m_v.sequential = m_k.sequential AND c_v.sequential < c_k.sequential)
+                ";
+
+                var combinedErrors = new Dictionary<int, dynamic>();
+
+                using (var reader = await cmd.ExecuteReaderAsync())
                 {
                     while (await reader.ReadAsync())
                     {
-                        errors.Add(new
+                        string type = reader.GetString(0);
+                        int mappingId = reader.GetInt32(1);
+                        string itemText = reader.GetString(2);
+                        int itemSeq = reader.GetInt32(3);
+                        string reqText = reader.GetString(4);
+                        int? reqSeq = reader.IsDBNull(5) ? (int?)null : reader.GetInt32(5);
+                        int? suggestedCircleId = reader.IsDBNull(6) ? (int?)null : reader.GetInt32(6);
+                        int globalReqSeq = reader.GetInt32(7);
+
+                        if (!combinedErrors.ContainsKey(mappingId))
                         {
-                            mappingId = reader.GetInt32(0),
-                            kanjiText = reader.GetString(1),
-                            kanjiSeq = reader.GetInt32(2),
-                            suggestedSeq = reader.GetInt32(3),
-                            suggestedCircleId = reader.GetInt32(4),
-                            radicals = reader.GetString(5)
-                        });
+                            combinedErrors[mappingId] = new
+                            {
+                                type = type,
+                                mappingId = mappingId,
+                                itemText = itemText,
+                                itemSeq = itemSeq,
+                                requirements = new List<string>(),
+                                suggestedSeq = reqSeq ?? 999,
+                                suggestedCircleId = suggestedCircleId ?? 0,
+                                maxGlobalSeq = globalReqSeq // Guarda a distância máxima
+                            };
+                        }
+
+                        combinedErrors[mappingId].requirements.Add(reqText);
+
+                        // Garante que o botão de auto-correção aponte sempre para o requisito mais avançado
+                        if (globalReqSeq > combinedErrors[mappingId].maxGlobalSeq)
+                        {
+                            combinedErrors[mappingId] = new
+                            {
+                                type = type,
+                                mappingId = mappingId,
+                                itemText = itemText,
+                                itemSeq = itemSeq,
+                                requirements = combinedErrors[mappingId].requirements,
+                                suggestedSeq = reqSeq ?? 999,
+                                suggestedCircleId = suggestedCircleId ?? 0,
+                                maxGlobalSeq = globalReqSeq
+                            };
+                        }
                     }
+                }
+
+                // Mapeia para as variáveis exatas que o seu Javascript já conhece
+                foreach (var err in combinedErrors.Values)
+                {
+                    errors.Add(new
+                    {
+                        type = err.type,
+                        mappingId = err.mappingId,
+                        kanjiText = err.itemText,
+                        kanjiSeq = err.itemSeq,
+                        radicals = string.Join(", ", err.requirements),
+                        suggestedSeq = err.suggestedSeq,
+                        suggestedCircleId = err.suggestedCircleId
+                    });
                 }
             }
 

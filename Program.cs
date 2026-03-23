@@ -39,6 +39,10 @@ builder.Services.AddScoped<Denkiishi_v2.Services.KanjiSeedService>();
 //import vocabulário
 builder.Services.AddScoped<VocabularyImportService>();
 
+// Adicionar o SrsService à Injeção de Dependência
+builder.Services.AddScoped<ISrsService, SrsService>();
+
+
 var app = builder.Build();
 
 // --- 2. CONFIGURAR O PIPELINE DE REQUISIÇÕES HTTP ---
