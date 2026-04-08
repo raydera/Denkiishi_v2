@@ -5,49 +5,60 @@ namespace Denkiishi_v2.Services
 {
     public interface ISrsService
     {
-        (SrsStage NewStage, DateTime NextReview) CalculateNextReview(SrsStage currentStage, int incorrectMeaningCount, int incorrectReadingCount);
+        // Atualizado para receber e devolver o Ease Factor
+        (SrsStage NewStage, DateTime NextReview, decimal NewEaseFactor) CalculateNextReview(
+            SrsStage currentStage,
+            int incorrectMeaningCount,
+            int incorrectReadingCount,
+            decimal currentEaseFactor);
     }
 
     public class SrsService : ISrsService
     {
-        // Os intervalos exatos de tempo (Indexados diretamente pelo valor do SrsStage)
-        // Nota: O índice 0 (Initiate) e o índice 9 (Burned) têm tempo Zero porque não entram na fila normal.
+        // Intervalos base (WaniKani style)
         private readonly TimeSpan[] _intervals = new TimeSpan[]
         {
             TimeSpan.Zero,            // 0: Initiate
-            TimeSpan.FromHours(4),    // 1: Apprentice 1 -> Vai para Apprentice 2 em 4h
-            TimeSpan.FromHours(8),    // 2: Apprentice 2 -> Vai para Apprentice 3 em 8h
-            TimeSpan.FromHours(23),   // 3: Apprentice 3 -> Vai para Apprentice 4 em 23h (23h ajusta melhor ao sono do aluno do que 24h)
-            TimeSpan.FromHours(47),   // 4: Apprentice 4 -> Vai para Guru 1 em 47h
-            TimeSpan.FromDays(7),     // 5: Guru 1 -> Vai para Guru 2 em 1 semana
-            TimeSpan.FromDays(14),    // 6: Guru 2 -> Vai para Master em 2 semanas
-            TimeSpan.FromDays(30),    // 7: Master -> Vai para Enlightened em 1 mês (aprox)
-            TimeSpan.FromDays(120),   // 8: Enlightened -> Vai para Burned em 4 meses
-            TimeSpan.Zero             // 9: Burned (Finalizado)
+            TimeSpan.FromHours(4),    // 1: Apprentice 1
+            TimeSpan.FromHours(8),    // 2: Apprentice 2
+            TimeSpan.FromHours(23),   // 3: Apprentice 3
+            TimeSpan.FromHours(47),   // 4: Apprentice 4
+            TimeSpan.FromDays(7),     // 5: Guru 1
+            TimeSpan.FromDays(14),    // 6: Guru 2
+            TimeSpan.FromDays(30),    // 7: Master
+            TimeSpan.FromDays(120),   // 8: Enlightened
+            TimeSpan.Zero             // 9: Burned
         };
 
-        public (SrsStage NewStage, DateTime NextReview) CalculateNextReview(SrsStage currentStage, int incorrectMeaningCount, int incorrectReadingCount)
+        public (SrsStage NewStage, DateTime NextReview, decimal NewEaseFactor) CalculateNextReview(
+            SrsStage currentStage,
+            int incorrectMeaningCount,
+            int incorrectReadingCount,
+            decimal currentEaseFactor)
         {
             int totalErrors = incorrectMeaningCount + incorrectReadingCount;
             int currentStageValue = (int)currentStage;
             int newStageValue;
+            decimal newEaseFactor = currentEaseFactor;
+
+            // Constantes do Algoritmo (Baseado em Anki/WaniKani)
+            const decimal EASE_BONUS = 0.15m;    // Aumenta facilidade no acerto limpo
+            const decimal EASE_PENALTY = 0.20m;  // Diminui facilidade por erro cometido
+            const decimal MIN_EASE = 1.30m;      // Trava para o item não sumir do radar
 
             if (totalErrors == 0)
             {
-                // Respondeu tudo certo! Sobe 1 nível.
+                // ACERTO LIMPO: Sobe 1 nível e o item torna-se "mais fácil"
                 newStageValue = currentStageValue + 1;
-
-                // Trava de segurança para não passar do nível máximo (Burned = 9)
-                if (newStageValue > 9) newStageValue = 9;
+                newEaseFactor += EASE_BONUS;
             }
             else
             {
-                // MÁGICA DA PENALIZAÇÃO:
-                // Se o aluno errar, ele cai de nível. A fórmula base é (Erros / 2) arredondado para cima.
+                // PENALIZAÇÃO DE ESTÁGIO (Leveled Down):
+                // Cálculo: (Erros / 2) arredondado para cima
                 int penalty = (int)Math.Ceiling(totalErrors / 2.0);
 
-                // Regra Cruel, mas justa: Se estava no nível Guru (5) ou superior, 
-                // o cérebro deveria ter consolidado a memória. O tombo é multiplicado por 2!
+                // Regra de Ouro: Se já era Guru+, o tombo é em dobro (perda de consistência)
                 if (currentStageValue >= (int)SrsStage.Guru1)
                 {
                     penalty *= 2;
@@ -55,20 +66,30 @@ namespace Denkiishi_v2.Services
 
                 newStageValue = currentStageValue - penalty;
 
-                // Um item que já foi aprendido nunca volta a ser "Trancado" (0). O fundo do poço é o Apprentice 1.
+                // PENALIZAÇÃO DE EASE FACTOR:
+                // Quanto mais erros, mais difícil o item é considerado.
+                newEaseFactor -= (totalErrors * EASE_PENALTY);
+
+                // Garantir que o item nunca volte ao estado "Não Aprendido" (0)
                 if (newStageValue < 1) newStageValue = 1;
             }
 
-            // Calcula a próxima data de revisão baseada na hora atual UTC (sempre use UTC em servidores!) + Intervalo
+            // Travas de Segurança
+            if (newStageValue > 9) newStageValue = 9;
+            if (newEaseFactor < MIN_EASE) newEaseFactor = MIN_EASE;
+
+            // Cálculo da Próxima Revisão
+            // Nota: Em sistemas avançados, multiplicamos o intervalo pelo EaseFactor. 
+            // Para manter compatibilidade WaniKani, usamos o intervalo fixo do estágio.
             DateTime nextReview = DateTime.UtcNow.Add(_intervals[newStageValue]);
 
-            // Se o item for "Queimado" (Burned), marcamos a revisão para o ano 2100 (na prática, ele some do SRS)
+            // Item "Queimado" (Burned)
             if (newStageValue == 9)
             {
                 nextReview = DateTime.UtcNow.AddYears(100);
             }
 
-            return ((SrsStage)newStageValue, nextReview);
+            return ((SrsStage)newStageValue, nextReview, newEaseFactor);
         }
     }
 }

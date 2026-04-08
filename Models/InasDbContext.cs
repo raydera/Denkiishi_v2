@@ -58,6 +58,7 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
     public virtual DbSet<Mandala> Mandalas { get; set; }
     public virtual DbSet<Circle> Circles { get; set; }
     public virtual DbSet<CircleUeItem> CircleUeItems { get; set; }
+    public virtual DbSet<QuizSession> QuizSessions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,23 +1,42 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Denkiishi_v2.Models;
 
+[Table("review_history")]
 public partial class ReviewHistory
 {
+    [Key]
+    [Column("id")]
     public int Id { get; set; }
 
-    public int UserId { get; set; }
+    [Required]
+    [Column("user_id")]
+    public string UserId { get; set; } // String para o Identity
 
-    public int CardId { get; set; }
+    [Required]
+    [Column("item_type")]
+    public string ItemType { get; set; } // "kanji", "radical", "vocabulary"
 
-    public DateTime? ReviewedAt { get; set; }
+    [Column("item_id")]
+    public int ItemId { get; set; }
 
-    public int Rating { get; set; }
+    [Column("meaning_incorrect_count")]
+    public int MeaningIncorrectCount { get; set; } = 0;
 
-    public int IntervalUsed { get; set; }
+    [Column("reading_incorrect_count")]
+    public int ReadingIncorrectCount { get; set; } = 0;
 
-    public virtual Card Card { get; set; } = null!;
+    [Column("starting_srs_stage")]
+    public int StartingSrsStage { get; set; }
 
-    public virtual User User { get; set; } = null!;
+    [Column("ending_srs_stage")]
+    public int EndingSrsStage { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [ForeignKey("UserId")]
+    public virtual ApplicationUser User { get; set; } = null!;
 }
