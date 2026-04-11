@@ -63,8 +63,9 @@ public partial class UserProgress
     [ForeignKey("UserId")]
     public virtual ApplicationUser User { get; set; } = null!;
 
-    // CardId mantido apenas para compatibilidade de esquema se necessário, 
-    // mas não será usado pela nova lógica do Quiz.
-    [Column("card_id")]
+    [NotMapped] // Isto diz ao EF: "Ignore esta propriedade nas queries de banco"
     public int? CardId { get; set; }
+
+    [NotMapped]
+    public virtual Card? Card { get; set; }
 }

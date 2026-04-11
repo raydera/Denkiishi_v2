@@ -5,6 +5,8 @@
     Layout = "_Layout";
 }
 
+@Html.AntiForgeryToken() @* Essencial para a segurança do POST via JavaScript *@
+
 <div class="quiz-container bg-light d-flex flex-column min-vh-100 pb-5">
 
     <div class="fixed-top bg-white shadow-sm" style="z-index: 1040;">
@@ -65,6 +67,8 @@
 
             <div class="quiz-card" id="quiz-card-@i" style="display:@(i == 0 ? "block" : "none");"
                  data-character="@q.Character"
+                 data-item-id="@q.ItemId" 
+                 data-item-type="@q.ItemType" 
                  data-prompt-type="@q.PromptType"
                  data-prompt-text="@q.PromptText">
 
@@ -106,7 +110,6 @@
                                autocomplete="off"
                                spellcheck="false"
                                data-question-index="@i"
-                               data-prompt-type="@q.PromptType"
                                onkeydown="quizHandleKeyDown(event)"
                                placeholder="Digite aqui sua resposta..." />
                         <span id="quizCorrectAnswer-@i" class="d-none">@(q.CorrectAnswer ?? "")</span>
@@ -119,7 +122,6 @@
 
     </div>
 
-    <!-- Resultado do quiz: exibido só no final, com validação automática -->
     <div id="quizResultsSection" class="container max-w-md mx-auto flex-grow-1 mt-3 mb-5" style="display: none;">
         <div class="card shadow-lg border-0" style="border-radius: 20px;">
             <div class="card-header bg-success text-white border-0 py-3" style="border-radius: 20px 20px 0 0;">
@@ -157,24 +159,11 @@
 <input type="hidden" id="quizTotalQuestions" value="@Model.Questions.Count" />
 
 <style>
-    .max-w-md {
-        max-width: 800px;
-    }
-
-    .quiz-card {
-        animation: quizFadeIn 0.3s ease-in-out;
-    }
-
+    .max-w-md { max-width: 800px; }
+    .quiz-card { animation: quizFadeIn 0.3s ease-in-out; }
     @@keyframes quizFadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(15px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 </style>
 
@@ -186,17 +175,15 @@
         let quizWrong = 0;
         const quizResults = [];
 
-        function normalizeMeaning(s) {
-            return (s || '').trim().toLowerCase();
-        }
-        function normalizeReading(s) {
-            return (s || '').trim();
-        }
+        function normalizeMeaning(s) { return (s || '').trim().toLowerCase(); }
+        function normalizeReading(s) { return (s || '').trim(); }
 
         function quizValidateAnswer(questionIndex) {
             const input = document.querySelector(`.quiz-input[data-question-index="${questionIndex}"]`);
+            const card = document.getElementById(`quiz-card-${questionIndex}`);
             const correctEl = document.getElementById(`quizCorrectAnswer-${questionIndex}`);
-            const promptType = (input && input.getAttribute('data-prompt-type')) || 'meaning';
+            
+            const promptType = card.dataset.promptType || 'meaning';
             const userAnswer = input ? input.value : '';
             const correctAnswer = correctEl ? correctEl.textContent : '';
 
@@ -210,7 +197,42 @@
         function quizRecordAndUpdateScore(questionIndex) {
             const r = quizValidateAnswer(questionIndex);
             quizResults[questionIndex] = r;
+            
             if (r.correct) quizCorrect++; else quizWrong++;
+
+            const card = document.getElementById(`quiz-card-${questionIndex}`);
+            const itemId = card.dataset.itemId;
+            const itemType = card.dataset.itemType;
+            const questionType = card.dataset.promptType;
+
+            // Envia para o servidor processar a lógica de SRS
+            registrarAcertoNoServidor(itemId, itemType, questionType, r.correct);
+        }
+
+        function registrarAcertoNoServidor(itemId, itemType, questionType, isCorrect) {
+            const formData = new URLSearchParams();
+            formData.append('itemId', itemId);
+            formData.append('itemType', itemType); 
+            formData.append('questionType', questionType);
+            formData.append('isCorrect', isCorrect);
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+            fetch('/Quiz/ProcessResponse', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'RequestVerificationToken': token
+                },
+                body: formData.toString()
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.finishedItem) {
+                    console.log(`🚀 Item ID ${itemId} (${itemType}) processado no SRS.`);
+                }
+            })
+            .catch(error => console.error('Erro de sincronização SRS:', error));
         }
 
         function quizUpdateProgress() {
@@ -222,15 +244,8 @@
             const btn = document.getElementById('quizNextButton');
             if (quizCurrent === quizTotal - 1) {
                 btn.innerHTML = 'Finalizar Quiz <i class="fa fa-flag-checkered ms-2"></i>';
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-success');
+                btn.classList.replace('btn-primary', 'btn-success');
             }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
 
         function quizShowResults() {
@@ -238,62 +253,49 @@
             document.getElementById('quizFooter').style.display = 'none';
             document.querySelector('.quiz-container .fixed-top').style.display = 'none';
 
-            document.getElementById('quizResultsSummary').textContent =
-                `Você acertou ${quizCorrect} de ${quizTotal} pergunta(s).`;
-
+            document.getElementById('quizResultsSummary').textContent = `Você acertou ${quizCorrect} de ${quizTotal} pergunta(s).`;
             const listEl = document.getElementById('quizResultsList');
             listEl.innerHTML = '';
 
             for (let i = 0; i < quizTotal; i++) {
                 const card = document.getElementById(`quiz-card-${i}`);
                 const r = quizResults[i] || {};
-                const character = card && card.dataset.character ? card.dataset.character : '';
-                const promptText = card && card.dataset.promptText ? card.dataset.promptText : '';
-                const promptType = card && card.dataset.promptType ? card.dataset.promptType : '';
+                const character = card.dataset.character;
+                const promptText = card.dataset.promptText;
+                const promptType = card.dataset.promptType;
 
                 const row = document.createElement('div');
                 row.className = 'border rounded-3 p-3 mb-3 ' + (r.correct ? 'border-success bg-success bg-opacity-10' : 'border-danger bg-danger bg-opacity-10');
-                row.innerHTML =
-                    '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">' +
-                    '<div><span class="fw-bold fs-4 me-2">' + escapeHtml(character) + '</span>' +
-                    '<span class="badge bg-secondary">' + escapeHtml(promptType) + '</span></div>' +
-                    (r.correct
-                        ? '<span class="text-success fw-bold"><i class="fa fa-check-circle"></i> Correto</span>'
-                        : '<span class="text-danger fw-bold"><i class="fa fa-times-circle"></i> Incorreto</span>') +
-                    '</div>' +
-                    '<p class="mb-1 mt-2 small text-muted">' + escapeHtml(promptText) + '</p>' +
-                    '<p class="mb-1"><strong>Sua resposta:</strong> ' + escapeHtml(r.userAnswer || '—') + '</p>' +
-                    (!r.correct ? '<p class="mb-0"><strong>Resposta correta:</strong> ' + escapeHtml(r.correctAnswer || '—') + '</p>' : '');
+                row.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div><span class="fw-bold fs-4 me-2">${character}</span><span class="badge bg-secondary">${promptType}</span></div>
+                        ${r.correct ? '<span class="text-success fw-bold"><i class="fa fa-check-circle"></i> Correto</span>' : '<span class="text-danger fw-bold"><i class="fa fa-times-circle"></i> Incorreto</span>'}
+                    </div>
+                    <p class="mb-1 mt-2 small text-muted">${promptText}</p>
+                    <p class="mb-1"><strong>Sua resposta:</strong> ${r.userAnswer || '—'}</p>
+                    ${!r.correct ? `<p class="mb-0"><strong>Resposta correta:</strong> ${r.correctAnswer || '—'}</p>` : ''}`;
                 listEl.appendChild(row);
             }
-
             document.getElementById('quizResultsSection').style.display = 'block';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function quizGoTo(index) {
-            if (index < 0 || index >= quizTotal) return;
-
-            const currentCard = document.getElementById(`quiz-card-${quizCurrent}`);
-            const nextCard = document.getElementById(`quiz-card-${index}`);
-            if (!nextCard) return;
-
-            currentCard.style.display = 'none';
-            nextCard.style.display = 'block';
-
+            document.getElementById(`quiz-card-${quizCurrent}`).style.display = 'none';
+            document.getElementById(`quiz-card-${index}`).style.display = 'block';
             quizCurrent = index;
             window.scrollTo({ top: 0, behavior: 'smooth' });
             quizUpdateProgress();
+            
+            // Foco automático no próximo input
+            const nextInput = document.querySelector(`.quiz-input[data-question-index="${index}"]`);
+            if (nextInput) nextInput.focus();
         }
 
         function quizNext() {
             quizRecordAndUpdateScore(quizCurrent);
-
-            if (quizCurrent < quizTotal - 1) {
-                quizGoTo(quizCurrent + 1);
-            } else {
-                quizShowResults();
-            }
+            if (quizCurrent < quizTotal - 1) quizGoTo(quizCurrent + 1);
+            else quizShowResults();
         }
 
         function quizHandleKeyDown(event) {
@@ -304,10 +306,10 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
-            if (quizTotal > 0) {
-                quizUpdateProgress();
-            }
+            if (quizTotal > 0) quizUpdateProgress();
+            // Foco no primeiro input
+            const firstInput = document.querySelector('.quiz-input');
+            if (firstInput) firstInput.focus();
         });
     </script>
 }
-

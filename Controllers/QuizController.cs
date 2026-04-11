@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
-using QuizSession; 
+
 namespace Denkiishi_v2.Controllers
 {
     public class QuizController : Controller
@@ -19,7 +19,83 @@ namespace Denkiishi_v2.Controllers
             _srsService = srsService;
         }
 
-        // ... (Método Start mantido conforme anterior) ...
+        /// <summary>
+        /// GET: Fallback para evitar erro 405 e permitir testes manuais via URL.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> Start(int sessionId, string[] selectedItems)
+        {
+            if (selectedItems == null || selectedItems.Length == 0)
+            {
+                TempData["QuizMessage"] = "Selecione itens na lição para iniciar o quiz.";
+                return RedirectToAction("Index", "Lesson");
+            }
+            return await ProcessQuizStart(sessionId, selectedItems);
+        }
+
+        /// <summary>
+        /// POST: Chamado ao finalizar a lição no Study.cshtml.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Start(int sessionId, [FromForm] string[] selectedItems, string mode = "lesson")
+        {
+            if (selectedItems == null || selectedItems.Length == 0)
+            {
+                TempData["QuizMessage"] = "Nenhum item recebido para o quiz.";
+                return RedirectToAction("Index", "Lesson");
+            }
+            return await ProcessQuizStart(sessionId, selectedItems);
+        }
+
+        /// <summary>
+        /// Lógica centralizada para montagem do Quiz e inicialização da sessão.
+        /// </summary>
+        private async Task<IActionResult> ProcessQuizStart(int sessionId, string[] selectedItems)
+        {
+            var langPtBr = await _context.Language.AsNoTracking().FirstOrDefaultAsync(l => l.LanguageCode == "pt-br")
+                           ?? await _context.Language.AsNoTracking().FirstOrDefaultAsync();
+            int langId = langPtBr?.Id ?? 1;
+
+            var questions = new List<QuizQuestionViewModel>();
+
+            foreach (var itemKey in selectedItems)
+            {
+                var parts = itemKey.Split('_');
+                if (parts.Length != 2 || !int.TryParse(parts[1], out int itemId)) continue;
+                string tipo = parts[0].ToLowerInvariant();
+
+                if (tipo == "radical") await AddRadicalQuestionsAsync(itemId, langId, questions);
+                else if (tipo == "kanji") await AddKanjiQuestionsAsync(itemId, langId, questions);
+                else if (tipo == "vocab" || tipo == "vocabulary") await AddVocabQuestionsAsync(itemId, langId, questions);
+            }
+
+            if (questions.Count == 0)
+            {
+                TempData["QuizMessage"] = "Não foi possível montar perguntas para os itens selecionados.";
+                return RedirectToAction("Index", "Lesson");
+            }
+
+            // Inicializar/Resetar Sessão no Banco (Resiliência AWS)
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId != null)
+            {
+                var oldSessions = _context.QuizSessions.Where(s => s.UserId == userId);
+                _context.QuizSessions.RemoveRange(oldSessions);
+
+                _context.QuizSessions.Add(new QuizSession
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    CurrentState = "{}",
+                    CreatedAt = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+            }
+
+            var model = new QuizSessionViewModel { SessionId = sessionId, Mode = "lesson", Questions = questions };
+            return View("Start", model);
+        }
 
         [HttpPost]
         public async Task<IActionResult> ProcessResponse(int itemId, string itemType, string questionType, bool isCorrect)
@@ -27,9 +103,8 @@ namespace Denkiishi_v2.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null) return Unauthorized();
 
-            // Busca sessão ativa
             var session = await _context.QuizSessions.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (session == null) return BadRequest("Sessão expirada.");
+            if (session == null) return BadRequest("Sessão não encontrada.");
 
             var quizData = JsonSerializer.Deserialize<Dictionary<string, QuizItemState>>(session.CurrentState)
                            ?? new Dictionary<string, QuizItemState>();
@@ -38,7 +113,6 @@ namespace Denkiishi_v2.Controllers
             if (!quizData.ContainsKey(key)) quizData[key] = new QuizItemState();
             var state = quizData[key];
 
-            // Atualiza erros/acertos
             if (isCorrect)
             {
                 if (questionType == "meaning") state.MeaningCorrect = true;
@@ -50,10 +124,10 @@ namespace Denkiishi_v2.Controllers
                 if (questionType == "reading") state.ReadingErrors++;
             }
 
-            // Verifica conclusão do item
             bool isFinished = false;
             if (itemType == "radical" && state.MeaningCorrect) isFinished = true;
-            if ((itemType == "kanji" || itemType == "vocab") && state.MeaningCorrect && state.ReadingCorrect) isFinished = true;
+            if ((itemType == "kanji" || itemType == "vocab" || itemType == "vocabulary")
+                && state.MeaningCorrect && state.ReadingCorrect) isFinished = true;
 
             if (isFinished)
             {
@@ -69,22 +143,19 @@ namespace Denkiishi_v2.Controllers
 
         private async Task PromoteToSrs(string userId, int itemId, string itemType, QuizItemState state)
         {
-            // Ajustando para os nomes de tabela do seu InasDbContext
-            var progress = await _context.UserProgresses
-                .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemType == itemType && p.ItemId == itemId);
+            string dbType = itemType == "vocab" ? "vocabulary" : itemType;
 
-            int totalErrors = state.MeaningErrors + state.ReadingErrors;
+            var progress = await _context.UserProgresses
+                .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemType == dbType && p.ItemId == itemId);
 
             if (progress == null)
             {
-                // Primeiro acerto (Nascimento no SRS)
                 var (newStage, nextReview, newEase) = _srsService.CalculateNextReview(SrsStage.Initiate, state.MeaningErrors, state.ReadingErrors, 2.50m);
-
                 _context.UserProgresses.Add(new UserProgress
                 {
                     UserId = userId,
                     ItemId = itemId,
-                    ItemType = itemType,
+                    ItemType = dbType,
                     SrsStage = (int)newStage,
                     NextReviewAt = nextReview,
                     EaseFactor = newEase,
@@ -95,21 +166,18 @@ namespace Denkiishi_v2.Controllers
             }
             else
             {
-                // Revisão (Evolução)
                 var (newStage, nextReview, newEase) = _srsService.CalculateNextReview((SrsStage)progress.SrsStage, state.MeaningErrors, state.ReadingErrors, progress.EaseFactor);
-
                 progress.SrsStage = (int)newStage;
                 progress.NextReviewAt = nextReview;
                 progress.EaseFactor = newEase;
                 progress.UpdatedAt = DateTime.UtcNow;
             }
 
-            // Log no histórico usando ReviewHistories (DbSet do seu Contexto)
             _context.ReviewHistories.Add(new ReviewHistory
             {
                 UserId = userId,
                 ItemId = itemId,
-                ItemType = itemType,
+                ItemType = dbType,
                 MeaningIncorrectCount = state.MeaningErrors,
                 ReadingIncorrectCount = state.ReadingErrors,
                 StartingSrsStage = progress?.SrsStage ?? 0,
@@ -118,6 +186,45 @@ namespace Denkiishi_v2.Controllers
             });
         }
 
-        // ... (Seus métodos privados de busca de perguntas AddKanjiQuestionsAsync etc aqui) ...
+        // --- MÉTODOS DE BUSCA LINGUÍSTICA (MANTIDOS E AJUSTADOS AO DBSET) ---
+
+        private async Task AddRadicalQuestionsAsync(int radicalId, int langId, List<QuizQuestionViewModel> questions)
+        {
+            var radical = await _context.Radicals.AsNoTracking().FirstOrDefaultAsync(r => r.Id == radicalId);
+            if (radical == null) return;
+            var meaning = await _context.RadicalMeanings.AsNoTracking().FirstOrDefaultAsync(rm => rm.IdRadical == radicalId && rm.IdLanguage == langId);
+            if (meaning == null || string.IsNullOrWhiteSpace(meaning.Description)) return;
+
+            questions.Add(new QuizQuestionViewModel { ItemType = "radical", ItemId = radicalId, Character = radical.Literal, PromptType = "meaning", PromptText = "Qual o significado deste radical?", HelperText = "Responda em Português.", CorrectAnswer = meaning.Description.Trim() });
+        }
+
+        private async Task AddKanjiQuestionsAsync(int kanjiId, int langId, List<QuizQuestionViewModel> questions)
+        {
+            var kanji = await _context.Kanjis.AsNoTracking().FirstOrDefaultAsync(k => k.Id == kanjiId && k.IsActive != false);
+            if (kanji == null) return;
+            var meaning = await _context.KanjiMeanings.AsNoTracking().Where(km => km.KanjiId == kanjiId && km.IdLanguage == langId).OrderByDescending(km => km.IsPrincipal).FirstOrDefaultAsync();
+            if (meaning != null && !string.IsNullOrWhiteSpace(meaning.Gloss))
+                questions.Add(new QuizQuestionViewModel { ItemType = "kanji", ItemId = kanjiId, Character = kanji.Literal, PromptType = "meaning", PromptText = "Qual o significado deste kanji?", HelperText = "Responda em Português.", CorrectAnswer = meaning.Gloss.Trim() });
+
+            var reading = await _context.KanjiReadings.AsNoTracking().Where(kr => kr.KanjiId == kanjiId && EF.Functions.ILike(kr.Type, "onyomi")).OrderByDescending(kr => kr.IsPrincipal).FirstOrDefaultAsync();
+            if (reading != null && !string.IsNullOrWhiteSpace(reading.ReadingKana))
+                questions.Add(new QuizQuestionViewModel { ItemType = "kanji", ItemId = kanjiId, Character = kanji.Literal, PromptType = "reading", PromptText = "Qual a leitura principal (onyomi)?", HelperText = "Digite em hiragana.", CorrectAnswer = reading.ReadingKana.Trim() });
+        }
+
+        private async Task AddVocabQuestionsAsync(int vocabId, int langId, List<QuizQuestionViewModel> questions)
+        {
+            var vocab = await _context.Vocabularies.AsNoTracking().FirstOrDefaultAsync(v => v.Id == vocabId && v.IsActive != false);
+            if (vocab == null) return;
+            var meaning = await _context.VocabularyMeanings.AsNoTracking().Where(vm => vm.VocabularyId == vocabId && vm.LanguageId == langId).OrderByDescending(vm => vm.IsPrimary).FirstOrDefaultAsync();
+            if (meaning != null && !string.IsNullOrWhiteSpace(meaning.Meaning))
+                questions.Add(new QuizQuestionViewModel { ItemType = "vocab", ItemId = vocabId, Character = vocab.Characters, PromptType = "meaning", PromptText = "Qual o significado deste vocabulário?", HelperText = "Responda em Português.", CorrectAnswer = meaning.Meaning.Trim() });
+
+            bool hasKanji = await _context.VocabularyCompositions.AsNoTracking().AnyAsync(vc => vc.VocabularyId == vocabId);
+            if (!hasKanji) return;
+
+            var reading = await _context.VocabularyReadings.AsNoTracking().Where(vr => vr.VocabularyId == vocabId).OrderByDescending(vr => vr.IsPrimary).FirstOrDefaultAsync();
+            if (reading != null && !string.IsNullOrWhiteSpace(reading.Reading))
+                questions.Add(new QuizQuestionViewModel { ItemType = "vocab", ItemId = vocabId, Character = vocab.Characters, PromptType = "reading", PromptText = "Qual a leitura principal?", HelperText = "Digite em hiragana/katakana.", CorrectAnswer = reading.Reading.Trim() });
+        }
     }
 }

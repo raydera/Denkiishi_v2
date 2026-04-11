@@ -10,5 +10,8 @@ namespace Denkiishi_v2.Models
         // Por exemplo: public string NivelJapones { get; set; }
         [StringLength(50)]
         public string Nickname { get; set; } // Nova propriedade
+                                             // Em Models/ApplicationUser.cs
+        public virtual ICollection<UserProgress> UserProgresses { get; set; } = new List<UserProgress>();
+        public virtual ICollection<ReviewHistory> ReviewHistories { get; set; } = new List<ReviewHistory>();
     }
 }

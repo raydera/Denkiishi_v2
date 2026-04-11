@@ -297,15 +297,26 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.HasKey(e => e.Id).HasName("historico_revisao_pkey");
             entity.ToTable("review_history");
-            entity.HasIndex(e => new { e.UserId, e.ReviewedAt }, "idx_usuario_historico");
-            entity.Property(e => e.Id).HasDefaultValueSql("nextval('historico_revisao_id_historico_seq'::regclass)").HasColumnName("id");
-            entity.Property(e => e.CardId).HasColumnName("card_id");
-            entity.Property(e => e.IntervalUsed).HasColumnName("interval_used");
-            entity.Property(e => e.Rating).HasColumnName("rating");
-            entity.Property(e => e.ReviewedAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnName("reviewed_at");
+
+            // Índices para performance em queries de relatórios (AWS/Analytics)
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt }, "idx_review_history_user_date");
+
+            entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.UserId).HasColumnName("user_id");
-            entity.HasOne(d => d.Card).WithMany(p => p.ReviewHistories).HasForeignKey(d => d.CardId).HasConstraintName("fk_cartao_historico");
-            entity.HasOne(d => d.User).WithMany(p => p.ReviewHistories).HasForeignKey(d => d.UserId).HasConstraintName("fk_usuario_historico");
+            entity.Property(e => e.ItemType).HasColumnName("item_type").HasMaxLength(20);
+            entity.Property(e => e.ItemId).HasColumnName("item_id");
+            entity.Property(e => e.MeaningIncorrectCount).HasColumnName("meaning_incorrect_count").HasDefaultValue(0);
+            entity.Property(e => e.ReadingIncorrectCount).HasColumnName("reading_incorrect_count").HasDefaultValue(0);
+            entity.Property(e => e.StartingSrsStage).HasColumnName("starting_srs_stage");
+            entity.Property(e => e.EndingSrsStage).HasColumnName("ending_srs_stage");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // Relacionamento com o Identity User
+            entity.HasOne(d => d.User)
+                  .WithMany(p => p.ReviewHistories) // Certifique-se de que adicionou a ICollection no ApplicationUser
+                  .HasForeignKey(d => d.UserId)
+                  .HasConstraintName("fk_review_history_aspnetusers")
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -339,20 +350,35 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.HasKey(e => e.Id).HasName("progresso_usuario_pkey");
             entity.ToTable("user_progress");
-            entity.HasIndex(e => e.NextReviewAt, "idx_proxima_revisao");
-            entity.HasIndex(e => new { e.UserId, e.CardId }, "idx_usuario_cartao_progresso");
-            entity.HasIndex(e => new { e.UserId, e.CardId }, "progresso_usuario_id_usuario_id_cartao_key").IsUnique();
-            entity.Property(e => e.Id).HasDefaultValueSql("nextval('progresso_usuario_id_progresso_seq'::regclass)").HasColumnName("id");
-            entity.Property(e => e.CardId).HasColumnName("card_id");
-            entity.Property(e => e.ConsecutiveCorrectCount).HasDefaultValue(0).HasColumnName("consecutive_correct_count");
-            entity.Property(e => e.EaseFactor).HasPrecision(4, 2).HasDefaultValueSql("2.50").HasColumnName("ease_factor");
-            entity.Property(e => e.Interval).HasDefaultValue(0).HasColumnName("interval");
-            entity.Property(e => e.LastReviewedAt).HasColumnName("last_reviewed_at");
-            entity.Property(e => e.NextReviewAt).HasColumnName("next_review_at");
-            entity.Property(e => e.ReviewCount).HasDefaultValue(0).HasColumnName("review_count");
+
+            // Índices cruciais para o Hangfire (Monitoramento de revisões)
+            entity.HasIndex(e => new { e.UserId, e.NextReviewAt }, "idx_user_progress_next_review");
+            entity.HasIndex(e => new { e.UserId, e.ItemType, e.ItemId }, "uk_user_progress_item").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.UserId).HasColumnName("user_id");
-            entity.HasOne(d => d.Card).WithMany(p => p.UserProgresses).HasForeignKey(d => d.CardId).HasConstraintName("fk_cartao_progresso");
-            entity.HasOne(d => d.User).WithMany(p => p.UserProgresses).HasForeignKey(d => d.UserId).HasConstraintName("fk_usuario_progresso");
+            entity.Property(e => e.ItemType).HasColumnName("item_type").HasMaxLength(20);
+            entity.Property(e => e.ItemId).HasColumnName("item_id");
+            entity.Property(e => e.SrsStage).HasColumnName("srs_stage").HasDefaultValue(0);
+            entity.Property(e => e.EaseFactor).HasColumnName("ease_factor").HasPrecision(4, 2).HasDefaultValue(2.50m);
+            entity.Property(e => e.Interval).HasColumnName("interval").HasDefaultValue(0);
+            entity.Property(e => e.ReviewCount).HasColumnName("review_count").HasDefaultValue(0);
+            entity.Property(e => e.ConsecutiveCorrectCount).HasColumnName("consecutive_correct_count").HasDefaultValue(0);
+            entity.Property(e => e.UnlockedAt).HasColumnName("unlocked_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.NextReviewAt).HasColumnName("next_review_at");
+            entity.Property(e => e.LastReviewedAt).HasColumnName("last_reviewed_at");
+            entity.Property(e => e.PassedAt).HasColumnName("passed_at");
+            entity.Property(e => e.BurnedAt).HasColumnName("burned_at");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.User)
+                  .WithMany(p => p.UserProgresses) // Certifique-se de que adicionou a ICollection no ApplicationUser
+                  .HasForeignKey(d => d.UserId)
+                  .HasConstraintName("fk_user_progress_aspnetusers")
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            // REMOVIDO: Mapeamento antigo para CardId que gerava erro CS1061
         });
 
         modelBuilder.Entity<UserSynonym>(entity =>
