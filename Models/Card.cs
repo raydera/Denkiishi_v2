@@ -17,7 +17,4 @@ public partial class Card
 
     public virtual Deck Deck { get; set; } = null!;
 
-    public virtual ICollection<ReviewHistory> ReviewHistories { get; set; } = new List<ReviewHistory>();
-
-    public virtual ICollection<UserProgress> UserProgresses { get; set; } = new List<UserProgress>();
 }

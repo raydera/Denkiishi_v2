@@ -351,6 +351,11 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(e => e.Id).HasName("progresso_usuario_pkey");
             entity.ToTable("user_progress");
 
+            // --- AÇÃO CRUCIAL: IGNORAR PROPRIEDADES QUE NÃO EXISTEM NO BANCO ---
+            // Isso impede que o EF tente criar colunas fantasmas como CardId1
+            entity.Ignore("CardId");
+            entity.Ignore("Card");
+
             // Índices cruciais para o Hangfire (Monitoramento de revisões)
             entity.HasIndex(e => new { e.UserId, e.NextReviewAt }, "idx_user_progress_next_review");
             entity.HasIndex(e => new { e.UserId, e.ItemType, e.ItemId }, "uk_user_progress_item").IsUnique();
@@ -361,24 +366,22 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.ItemId).HasColumnName("item_id");
             entity.Property(e => e.SrsStage).HasColumnName("srs_stage").HasDefaultValue(0);
             entity.Property(e => e.EaseFactor).HasColumnName("ease_factor").HasPrecision(4, 2).HasDefaultValue(2.50m);
-            entity.Property(e => e.Interval).HasColumnName("interval").HasDefaultValue(0);
-            entity.Property(e => e.ReviewCount).HasColumnName("review_count").HasDefaultValue(0);
-            entity.Property(e => e.ConsecutiveCorrectCount).HasColumnName("consecutive_correct_count").HasDefaultValue(0);
+           // entity.Property(e => e.Interval).HasColumnName("interval").HasDefaultValue(0);
+           // entity.Property(e => e.ReviewCount).HasColumnName("review_count").HasDefaultValue(0);
+           // entity.Property(e => e.ConsecutiveCorrectCount).HasColumnName("consecutive_correct_count").HasDefaultValue(0);
             entity.Property(e => e.UnlockedAt).HasColumnName("unlocked_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.NextReviewAt).HasColumnName("next_review_at");
-            entity.Property(e => e.LastReviewedAt).HasColumnName("last_reviewed_at");
             entity.Property(e => e.PassedAt).HasColumnName("passed_at");
             entity.Property(e => e.BurnedAt).HasColumnName("burned_at");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            // Relacionamento apenas com User (Identity)
             entity.HasOne(d => d.User)
-                  .WithMany(p => p.UserProgresses) // Certifique-se de que adicionou a ICollection no ApplicationUser
+                  .WithMany(p => p.UserProgresses)
                   .HasForeignKey(d => d.UserId)
                   .HasConstraintName("fk_user_progress_aspnetusers")
                   .OnDelete(DeleteBehavior.Cascade);
-
-            // REMOVIDO: Mapeamento antigo para CardId que gerava erro CS1061
         });
 
         modelBuilder.Entity<UserSynonym>(entity =>

@@ -153,7 +153,7 @@ namespace Denkiishi_v2.Controllers
                 var (newStage, nextReview, newEase) = _srsService.CalculateNextReview(SrsStage.Initiate, state.MeaningErrors, state.ReadingErrors, 2.50m);
                 _context.UserProgresses.Add(new UserProgress
                 {
-                    UserId = userId,
+                    User = await _context.Users.FindAsync(Convert.ToInt32(userId)),
                     ItemId = itemId,
                     ItemType = dbType,
                     SrsStage = (int)newStage,
