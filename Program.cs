@@ -3,6 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Denkiishi_v2.Models;
 using Denkiishi_v2.Services; // Importante para o WaniKaniService
+using Denkiishi_v2.Jobs;
+using Denkiishi_v2.Infrastructure;
+using Hangfire;
+using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.DataProtection;
+using System.IO;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +22,18 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<InasDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+// DataProtection: necessário para antiforgery/cookies funcionarem corretamente em Docker/Linux.
+// Persistimos chaves em disco para evitar "The antiforgery token could not be decrypted".
+var keysDir =
+    RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Denkiishi_v2", "DataProtection-Keys")
+        : "/app/.aspnet/DataProtection-Keys";
+
+Directory.CreateDirectory(keysDir);
+builder.Services.AddDataProtection()
+    .SetApplicationName("Denkiishi_v2")
+    .PersistKeysToFileSystem(new DirectoryInfo(keysDir));
 
 // CONFIGURAÇÃO DO IDENTITY (LOGIN)
 // Correção Importante: Usamos IdentityUser para bater certo com o banco de dados
@@ -30,6 +49,24 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
 })
     .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<InasDbContext>();
+
+// Configurações de e-mail (aceita variáveis de ambiente no padrão ASP.NET: EmailSettings__AppPassword etc.)
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Hangfire: Storage no PostgreSQL, schema "hangfire"
+builder.Services.AddHangfire(config =>
+{
+    config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180);
+    config.UseSimpleAssemblyNameTypeSerializer();
+    config.UseRecommendedSerializerSettings();
+    config.UsePostgreSqlStorage(connectionString, new PostgreSqlStorageOptions
+    {
+        SchemaName = "hangfire"
+    });
+});
+builder.Services.AddHangfireServer();
+builder.Services.AddScoped<SrsNotificationJob>();
 
 // Registrar Serviços Personalizados
 builder.Services.AddHttpClient();
@@ -62,6 +99,12 @@ app.UseAuthentication(); // 1º: Verifica QUEM é o utilizador (Login)
 app.UseAuthorization();  // 2º: Verifica O QUE ele pode fazer (Permissões)
 // ----------------------------------
 
+// Hangfire Dashboard (somente Admin)
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireDashboardAuthFilter() }
+});
+
 // Configuração de Arquivos Estáticos (Padrão .NET 9)
 app.MapStaticAssets();
 
@@ -73,5 +116,11 @@ app.MapControllerRoute(
 
 // Habilita as páginas de Login/Registro do Identity
 app.MapRazorPages();
+
+// Recurring Job: notificar SRS a cada 1h
+RecurringJob.AddOrUpdate<SrsNotificationJob>(
+    "srs-notification-hourly",
+    job => job.ExecuteAsync(default),
+    Cron.Hourly);
 
 app.Run();

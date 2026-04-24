@@ -1,6 +1,6 @@
+using Denkiishi_v2.Enums;
 using Denkiishi_v2.Models;
 using Denkiishi_v2.Services;
-using Denkiishi_v2.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -98,6 +98,7 @@ namespace Denkiishi_v2.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ProcessResponse(int itemId, string itemType, string questionType, bool isCorrect)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -109,29 +110,42 @@ namespace Denkiishi_v2.Controllers
             var quizData = JsonSerializer.Deserialize<Dictionary<string, QuizItemState>>(session.CurrentState)
                            ?? new Dictionary<string, QuizItemState>();
 
-            string key = $"{itemType}_{itemId}";
+            var normalizedItemType = NormalizeItemType(itemType);
+            var normalizedQuestionType = NormalizeQuestionType(questionType);
+
+            string key = $"{normalizedItemType}_{itemId}";
             if (!quizData.ContainsKey(key)) quizData[key] = new QuizItemState();
             var state = quizData[key];
 
             if (isCorrect)
             {
-                if (questionType == "meaning") state.MeaningCorrect = true;
-                if (questionType == "reading") state.ReadingCorrect = true;
+                if (normalizedQuestionType == "meaning") state.MeaningCorrect = true;
+                if (normalizedQuestionType == "reading") state.ReadingCorrect = true;
             }
             else
             {
-                if (questionType == "meaning") state.MeaningErrors++;
-                if (questionType == "reading") state.ReadingErrors++;
+                if (normalizedQuestionType == "meaning") state.MeaningErrors++;
+                if (normalizedQuestionType == "reading") state.ReadingErrors++;
             }
 
             bool isFinished = false;
-            if (itemType == "radical" && state.MeaningCorrect) isFinished = true;
-            if ((itemType == "kanji" || itemType == "vocab" || itemType == "vocabulary")
-                && state.MeaningCorrect && state.ReadingCorrect) isFinished = true;
+            if (normalizedItemType == "radical" && state.MeaningCorrect) isFinished = true;
+
+            // Vocab pode ter somente meaning (kana-only). Neste caso, reading não será perguntado e o item deve finalizar com meaning.
+            if (normalizedItemType == "vocab")
+            {
+                var hasKanji = await _context.VocabularyCompositions
+                    .AsNoTracking()
+                    .AnyAsync(vc => vc.VocabularyId == itemId);
+
+                isFinished = hasKanji ? (state.MeaningCorrect && state.ReadingCorrect) : state.MeaningCorrect;
+            }
+
+            if (normalizedItemType == "kanji" && state.MeaningCorrect && state.ReadingCorrect) isFinished = true;
 
             if (isFinished)
             {
-                await PromoteToSrs(userId, itemId, itemType, state);
+                await PromoteToSrs(userId, itemId, normalizedItemType, state);
             }
 
             session.CurrentState = JsonSerializer.Serialize(quizData);
@@ -143,35 +157,52 @@ namespace Denkiishi_v2.Controllers
 
         private async Task PromoteToSrs(string userId, int itemId, string itemType, QuizItemState state)
         {
-            string dbType = itemType == "vocab" ? "vocabulary" : itemType;
+            // Padronização: gravamos apenas radical | kanji | vocab (conforme plano)
+            string dbType = NormalizeItemType(itemType);
 
             var progress = await _context.UserProgresses
                 .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemType == dbType && p.ItemId == itemId);
 
+            int startingStage = progress?.SrsStage ?? 0;
+            SrsStage currentStage = (SrsStage)startingStage;
+
             if (progress == null)
             {
                 var (newStage, nextReview, newEase) = _srsService.CalculateNextReview(SrsStage.Initiate, state.MeaningErrors, state.ReadingErrors, 2.50m);
+
                 _context.UserProgresses.Add(new UserProgress
                 {
-                    User = await _context.Users.FindAsync(Convert.ToInt32(userId)),
+                    UserId = userId,
                     ItemId = itemId,
                     ItemType = dbType,
                     SrsStage = (int)newStage,
                     NextReviewAt = nextReview,
                     EaseFactor = newEase,
+                    Interval = 0,
+                    ReviewCount = 0,
+                    ConsecutiveCorrectCount = 0,
+                    LastReviewedAt = DateTime.UtcNow,
                     UnlockedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
+
+                progress = await _context.UserProgresses
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.UserId == userId && p.ItemType == dbType && p.ItemId == itemId);
             }
             else
             {
-                var (newStage, nextReview, newEase) = _srsService.CalculateNextReview((SrsStage)progress.SrsStage, state.MeaningErrors, state.ReadingErrors, progress.EaseFactor);
+                var (newStage, nextReview, newEase) = _srsService.CalculateNextReview(currentStage, state.MeaningErrors, state.ReadingErrors, progress.EaseFactor);
                 progress.SrsStage = (int)newStage;
                 progress.NextReviewAt = nextReview;
                 progress.EaseFactor = newEase;
                 progress.UpdatedAt = DateTime.UtcNow;
+                progress.LastReviewedAt = DateTime.UtcNow;
             }
+
+            // Recarrega o stage final (insert/update)
+            int endingStage = progress?.SrsStage ?? (startingStage == 0 ? 1 : startingStage);
 
             _context.ReviewHistories.Add(new ReviewHistory
             {
@@ -180,10 +211,34 @@ namespace Denkiishi_v2.Controllers
                 ItemType = dbType,
                 MeaningIncorrectCount = state.MeaningErrors,
                 ReadingIncorrectCount = state.ReadingErrors,
-                StartingSrsStage = progress?.SrsStage ?? 0,
-                EndingSrsStage = progress?.SrsStage ?? 1,
+                StartingSrsStage = startingStage,
+                EndingSrsStage = endingStage,
                 CreatedAt = DateTime.UtcNow
             });
+        }
+
+        private static string NormalizeItemType(string? itemType)
+        {
+            var t = (itemType ?? string.Empty).Trim().ToLowerInvariant();
+            return t switch
+            {
+                "radical" => "radical",
+                "kanji" => "kanji",
+                "vocab" => "vocab",
+                "vocabulary" => "vocab",
+                _ => t
+            };
+        }
+
+        private static string NormalizeQuestionType(string? questionType)
+        {
+            var t = (questionType ?? string.Empty).Trim().ToLowerInvariant();
+            return t switch
+            {
+                "meaning" => "meaning",
+                "reading" => "reading",
+                _ => t
+            };
         }
 
         // --- MÉTODOS DE BUSCA LINGUÍSTICA (MANTIDOS E AJUSTADOS AO DBSET) ---

@@ -1,0 +1,81 @@
+@model Denkiishi_v2.Controllers.AdminMetricsViewModel
+
+@{
+    ViewData["Title"] = "Métricas de E-mails";
+    Layout = "_Layout";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">Indicadores (últimas 24h)</h3>
+        <a class="btn btn-outline-secondary" href="@Url.Action("Index", "Home")">Voltar</a>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-muted small">Total de e-mails</div>
+                    <div class="display-6 fw-bold">@Model.TotalEmailsLast24h</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-muted small">Sucesso</div>
+                    <div class="display-6 fw-bold text-success">@Model.SuccessEmailsLast24h</div>
+                    <div class="small text-muted">Taxa: @((Model.SuccessRate * 100).ToString("0.0"))%</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-muted small">Erros</div>
+                    <div class="display-6 fw-bold text-danger">@Model.ErrorEmailsLast24h</div>
+                    <div class="small text-muted">Taxa: @((Model.ErrorRate * 100).ToString("0.0"))%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white">
+            <strong>Últimos 5 erros</strong>
+        </div>
+        <div class="card-body">
+            @if (Model.LastErrors.Count == 0)
+            {
+                <div class="alert alert-success mb-0">Nenhum erro registrado.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Data (UTC)</th>
+                                <th>Para</th>
+                                <th>Assunto</th>
+                                <th>Erro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var e in Model.LastErrors)
+                            {
+                                <tr>
+                                    <td class="text-nowrap">@e.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td class="text-nowrap">@e.ToEmail</td>
+                                    <td>@e.Subject</td>
+                                    <td class="text-danger">@e.ErrorMessage</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+

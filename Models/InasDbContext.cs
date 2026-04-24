@@ -59,10 +59,17 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
     public virtual DbSet<Circle> Circles { get; set; }
     public virtual DbSet<CircleUeItem> CircleUeItems { get; set; }
     public virtual DbSet<QuizSession> QuizSessions { get; set; }
+    public virtual DbSet<EmailLog> EmailLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(e => e.TimeZone).HasColumnName("TimeZone");
+            entity.Property(e => e.Country).HasColumnName("Country");
+        });
 
         modelBuilder.Entity<VocabularyPartOfSpeechMap>(entity =>
         {
@@ -329,6 +336,13 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.Email).HasMaxLength(255).HasColumnName("email");
             entity.Property(e => e.RegisteredAt).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnName("registered_at");
             entity.Property(e => e.Username).HasMaxLength(100).HasColumnName("username");
+
+            // IMPORTANTE: esta tabela "user" (legado) NÃO é o AspNetUsers do Identity.
+            // As relações de SRS (user_progress/review_history) apontam para AspNetUsers (Id TEXT).
+            // Se mantivermos coleções de navegação aqui, o EF tenta criar um 2º relacionamento
+            // e gera chaves sombras (UserId1), causando SQL com colunas inexistentes.
+            entity.Ignore(e => e.UserProgresses);
+            entity.Ignore(e => e.ReviewHistories);
         });
 
         modelBuilder.Entity<UserNote>(entity =>
@@ -348,40 +362,48 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<UserProgress>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("progresso_usuario_pkey");
             entity.ToTable("user_progress");
+            entity.HasKey(e => e.Id);
 
-            // --- AÇÃO CRUCIAL: IGNORAR PROPRIEDADES QUE NÃO EXISTEM NO BANCO ---
-            // Isso impede que o EF tente criar colunas fantasmas como CardId1
-            entity.Ignore("CardId");
-            entity.Ignore("Card");
-
-            // Índices cruciais para o Hangfire (Monitoramento de revisões)
-            entity.HasIndex(e => new { e.UserId, e.NextReviewAt }, "idx_user_progress_next_review");
-            entity.HasIndex(e => new { e.UserId, e.ItemType, e.ItemId }, "uk_user_progress_item").IsUnique();
-
+            // Mapeamento de cada coluna para snake_case do Postgres
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.UserId).HasColumnName("user_id");
-            entity.Property(e => e.ItemType).HasColumnName("item_type").HasMaxLength(20);
+            entity.Property(e => e.ItemType).HasColumnName("item_type");
             entity.Property(e => e.ItemId).HasColumnName("item_id");
-            entity.Property(e => e.SrsStage).HasColumnName("srs_stage").HasDefaultValue(0);
-            entity.Property(e => e.EaseFactor).HasColumnName("ease_factor").HasPrecision(4, 2).HasDefaultValue(2.50m);
-           // entity.Property(e => e.Interval).HasColumnName("interval").HasDefaultValue(0);
-           // entity.Property(e => e.ReviewCount).HasColumnName("review_count").HasDefaultValue(0);
-           // entity.Property(e => e.ConsecutiveCorrectCount).HasColumnName("consecutive_correct_count").HasDefaultValue(0);
-            entity.Property(e => e.UnlockedAt).HasColumnName("unlocked_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.SrsStage).HasColumnName("srs_stage");
+            entity.Property(e => e.EaseFactor).HasColumnName("ease_factor").HasPrecision(4, 2);
+            entity.Property(e => e.Interval).HasColumnName("interval");
+            entity.Property(e => e.ReviewCount).HasColumnName("review_count");
+            entity.Property(e => e.ConsecutiveCorrectCount).HasColumnName("consecutive_correct_count");
+            entity.Property(e => e.UnlockedAt).HasColumnName("unlocked_at");
             entity.Property(e => e.NextReviewAt).HasColumnName("next_review_at");
+            entity.Property(e => e.LastReviewedAt).HasColumnName("last_reviewed_at");
             entity.Property(e => e.PassedAt).HasColumnName("passed_at");
             entity.Property(e => e.BurnedAt).HasColumnName("burned_at");
-            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
-            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
 
-            // Relacionamento apenas com User (Identity)
+            // Resolvendo o erro UserId1 de forma definitiva
             entity.HasOne(d => d.User)
                   .WithMany(p => p.UserProgresses)
                   .HasForeignKey(d => d.UserId)
-                  .HasConstraintName("fk_user_progress_aspnetusers")
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .HasConstraintName("fk_user_progress_aspnetusers");
+        });
+
+        modelBuilder.Entity<EmailLog>(entity =>
+        {
+            entity.ToTable("email_logs");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.CreatedAt, "idx_email_logs_created_at");
+            entity.Property(e => e.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(e => e.UserId).HasColumnName("user_id").HasMaxLength(450);
+            entity.Property(e => e.AppEnvironment).HasColumnName("environment").HasMaxLength(64);
+            entity.Property(e => e.ToEmail).HasColumnName("email_recipient");
+            entity.Property(e => e.Subject).HasColumnName("subject");
+            entity.Property(e => e.Body).HasColumnName("body");
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(20);
+            entity.Property(e => e.ErrorMessage).HasColumnName("error_message");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
         });
 
         modelBuilder.Entity<UserSynonym>(entity =>

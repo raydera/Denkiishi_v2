@@ -117,7 +117,33 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 
-    @if (User.Identity.IsAuthenticated && User.Identity.Name == "rayderaguiar@gmail")
+    @if (User?.Identity?.IsAuthenticated == true)
+    {
+        <script>
+            (function () {
+                try {
+                    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+                    const payload = { timeZone: timeZone, country: null };
+
+                    // Evita bater no servidor em toda navegação
+                    const lastTz = localStorage.getItem("denkiishi.tz");
+                    if (lastTz === timeZone) return;
+
+                    fetch("/api/user/localization", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(payload)
+                    }).then(r => {
+                        if (r.ok) localStorage.setItem("denkiishi.tz", timeZone);
+                    }).catch(() => { /* ignore */ });
+                } catch (e) { /* ignore */ }
+            })();
+        </script>
+    }
+
+    @if (User?.Identity?.IsAuthenticated == true && User?.Identity?.Name == "rayderaguiar@gmail")
     {
         <div id="sakura-container"></div>
 
