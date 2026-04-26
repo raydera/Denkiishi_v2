@@ -39,4 +39,8 @@
     <Folder Include="wwwroot\Animation\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="wwwroot\imgs\logos\logo_horizontal_mono.svg" />
+  </ItemGroup>
+
 </Project>
