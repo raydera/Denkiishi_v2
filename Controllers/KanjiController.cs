@@ -23,7 +23,18 @@ namespace Denkiishi_v2.Controllers
         // ==========================================================
         // 1. INDEX
         // ==========================================================
-        public async Task<IActionResult> Index(int? categoriaId, int? linguaId)
+        /// <summary>
+        /// Renderiza o mapa de Kanjis com busca e filtros (Categoria/Língua/Círculo).
+        ///
+        /// Regra de negócio (subconjunto de radicais): quando <paramref name="circleId"/> é informado,
+        /// calculamos o conjunto de radicais conhecidos do aluno dentro da mesma Mandala (todos os círculos
+        /// com <c>sequential</c> menor ou igual ao círculo atual). Em seguida, selecionamos Kanjis cujo conjunto
+        /// de radicais em <c>kanji_radical</c> é um subconjunto integral desse conjunto conhecido.
+        ///
+        /// Essa é a mesma ideia do validador do Arquiteto (<c>ValidateMatrix</c>): um item só “faz sentido”
+        /// quando seus requisitos (radicais) já foram introduzidos em círculos anteriores da mesma Mandala.
+        /// </summary>
+        public async Task<IActionResult> Index(int? categoriaId, int? linguaId, int? circleId, bool switchModalKanji = false)
         {
             var viewModel = new KanjiGeralViewModel();
 
@@ -59,15 +70,151 @@ namespace Denkiishi_v2.Controllers
                 })
                 .ToList();
 
+            // D. Carregar Círculos (Arquiteto) para o dropdown
+            viewModel.CirculoId = circleId;
+            viewModel.SwitchModalKanji = switchModalKanji;
+
+            var circulosItens = new List<SelectListItem>();
+            using (var cmd = _context.Database.GetDbConnection().CreateCommand())
+            {
+                if (cmd.Connection.State != System.Data.ConnectionState.Open) await cmd.Connection.OpenAsync();
+                cmd.CommandText = @"
+                    SELECT c.id, m.sequential, m.text, c.sequential, c.text
+                    FROM circle c JOIN mandala m ON c.mandala_id = m.id
+                    ORDER BY m.sequential, c.sequential";
+
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        int cId = reader.GetInt32(0);
+                        int mSeq = reader.GetInt32(1);
+                        string mText = reader.GetString(2);
+                        int cSeq = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+                        string cText = reader.GetString(4);
+
+                        circulosItens.Add(new SelectListItem
+                        {
+                            Value = cId.ToString(),
+                            Text = $"M{mSeq}.C{cSeq} - {cText} ({mText})",
+                            Selected = (circleId.HasValue && cId == circleId.Value)
+                        });
+                    }
+                }
+            }
+
+            viewModel.CirculosDisponiveis = new SelectList(circulosItens, "Value", "Text", circleId?.ToString());
+
             // C. Buscar Kanjis
             if (viewModel.CategoriaSelecionadaId > 0)
             {
-                var dados = await _context.KanjiCategoryMaps
+                var query = _context.KanjiCategoryMaps
                     .Include(kc => kc.Kanji)
                         .ThenInclude(k => k.KanjiMeanings)
                     .Where(kc => kc.CategoryId == viewModel.CategoriaSelecionadaId)
-                    .Where(kc => kc.Kanji.IsActive == true)
-                    .ToListAsync();
+                    .Where(kc => kc.Kanji.IsActive == true);
+
+                // Filtro por Círculo (Arquiteto)
+                if (circleId.HasValue)
+                {
+                    int cId = circleId.Value;
+
+                    // ARCH: RadialValidation
+                    // Identifica Mandala/Sequencial do círculo atual para aplicar a regra de subconjunto.
+                    var circleInfo = await _context.Circles
+                        .AsNoTracking()
+                        .Where(c => c.Id == cId)
+                        .Select(c => new { c.Id, c.MandalaId, c.Sequential })
+                        .FirstOrDefaultAsync();
+
+                    // Se o circleId for inválido, simplesmente não aplica filtro de círculo (fail-safe).
+                    if (circleInfo != null)
+                    {
+                        // ARCH: RadialValidation
+                        // Conjunto de radicais conhecidos: todos radicais mapeados em círculos <= sequencial atual (na mesma mandala).
+                        var knownRadicalIds = await (
+                            from cui in _context.CircleUeItems.AsNoTracking()
+                            join c in _context.Circles.AsNoTracking() on cui.CircleId equals c.Id
+                            where c.MandalaId == circleInfo.MandalaId
+                                  && c.Sequential <= circleInfo.Sequential
+                                  && cui.RadicalId != null
+                            select cui.RadicalId!.Value
+                        ).Distinct().ToListAsync();
+
+                        // Conjunto de kanjis nativos do círculo atual.
+                        var nativeKanjiIdsQuery = _context.CircleUeItems
+                            .AsNoTracking()
+                            .Where(x => x.CircleId == cId && x.KanjiId != null)
+                            .Select(x => x.KanjiId!.Value);
+
+                        // ARCH: RadialValidation
+                        // Kanjis “válidos pela lógica”: todos seus radicais estão contidos em knownRadicalIds (divisão relacional).
+                        // Implementação por contagem para tradução SQL eficiente.
+                        var suggestedByLogicKanjiIdsQuery = _context.KanjiRadicals
+                            .AsNoTracking()
+                            .GroupBy(kr => kr.KanjiId)
+                            .Where(g =>
+                                g.Count() == g.Count(kr => knownRadicalIds.Contains(kr.RadicalId))
+                            )
+                            .Select(g => g.Key);
+
+                        // Filtro final do mapa: nativos OU sugeridos pela lógica (independente do modo “Estrito”).
+                        // O switchModalKanji mantém apenas o “expandido” de vocabulários para o conjunto nativo (legado).
+                        if (switchModalKanji)
+                        {
+                            query = query.Where(kc =>
+                                nativeKanjiIdsQuery.Contains(kc.KanjiId) ||
+                                suggestedByLogicKanjiIdsQuery.Contains(kc.KanjiId)
+                            );
+                        }
+                        else
+                        {
+                            var vocabIdsNoCirculo = _context.CircleUeItems
+                                .AsNoTracking()
+                                .Where(x => x.CircleId == cId && x.VocabularyId != null)
+                                .Select(x => x.VocabularyId!.Value);
+
+                            var kanjiIdsDeVocabsNoCirculo = _context.VocabularyCompositions
+                                .AsNoTracking()
+                                .Where(vc => vocabIdsNoCirculo.Contains(vc.VocabularyId))
+                                .Select(vc => vc.KanjiId);
+
+                            query = query.Where(kc =>
+                                nativeKanjiIdsQuery.Contains(kc.KanjiId) ||
+                                kanjiIdsDeVocabsNoCirculo.Contains(kc.KanjiId) ||
+                                suggestedByLogicKanjiIdsQuery.Contains(kc.KanjiId)
+                            );
+                        }
+
+                        // Materializa conjuntos para flags no DTO (evita N+1 / Contains em loop no client).
+                        var nativeKanjiIds = await nativeKanjiIdsQuery.Distinct().ToListAsync();
+                        var suggestedByLogicKanjiIds = await suggestedByLogicKanjiIdsQuery.Distinct().ToListAsync();
+
+                        // Executa a query já filtrada e projeta DTOs com flags.
+                        var dadosFiltrados = await query.ToListAsync();
+
+                        viewModel.KanjisPorNivel = dadosFiltrados
+                            .GroupBy(kc => kc.CategoryLevel)
+                            .OrderBy(g => g.Key)
+                            .ToDictionary(
+                                g => g.Key ?? "Outros",
+                                g => g.Select(m => new KanjiStatusDto
+                                {
+                                    Id = m.Kanji.Id,
+                                    Literal = m.Kanji.Literal,
+                                    TemTraducao = m.Kanji.KanjiMeanings.Any(km => km.IdLanguage == viewModel.LinguaSelecionadaId),
+                                    SearchText = (m.Kanji.Literal + " " + string.Join(" ", m.Kanji.KanjiMeanings.Select(km => km.Gloss))).ToLower(),
+                                    IsNativeToCircle = nativeKanjiIds.Contains(m.Kanji.Id),
+                                    IsSuggestedByLogic = suggestedByLogicKanjiIds.Contains(m.Kanji.Id) && !nativeKanjiIds.Contains(m.Kanji.Id)
+                                }).ToList()
+                            );
+
+                        return View(viewModel);
+                    }
+
+                }
+
+                var dados = await query.ToListAsync();
 
                 // D. Agrupar por Nível
                 viewModel.KanjisPorNivel = dados
@@ -80,7 +227,9 @@ namespace Denkiishi_v2.Controllers
                             Id = m.Kanji.Id,
                             Literal = m.Kanji.Literal,
                             TemTraducao = m.Kanji.KanjiMeanings.Any(km => km.IdLanguage == viewModel.LinguaSelecionadaId),
-                            SearchText = (m.Kanji.Literal + " " + string.Join(" ", m.Kanji.KanjiMeanings.Select(km => km.Gloss))).ToLower()
+                            SearchText = (m.Kanji.Literal + " " + string.Join(" ", m.Kanji.KanjiMeanings.Select(km => km.Gloss))).ToLower(),
+                            IsNativeToCircle = false,
+                            IsSuggestedByLogic = false
                         }).ToList()
                     );
             }

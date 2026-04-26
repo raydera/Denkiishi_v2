@@ -12,6 +12,11 @@ namespace Denkiishi_v2.Models
         public int CategoriaSelecionadaId { get; set; }
         public List<SelectListItem> CategoriasDisponiveis { get; set; } = new List<SelectListItem>();
 
+        // --- FILTROS (Arquiteto / Estrito) ---
+        public int? CirculoId { get; set; }
+        public SelectList? CirculosDisponiveis { get; set; }
+        public bool SwitchModalKanji { get; set; }
+
         // --- ALTERAÇÃO IMPORTANTE ---
         // Mudamos de Dictionary<int, ...> para Dictionary<string, ...>
         // Motivo: O nível agora é texto ("N1", "Grade 3", "N5") e não só número.
@@ -24,5 +29,7 @@ namespace Denkiishi_v2.Models
         public string Literal { get; set; }
         public bool TemTraducao { get; set; }
         public string SearchText { get; set; }
+        public bool IsNativeToCircle { get; set; }
+        public bool IsSuggestedByLogic { get; set; }
     }
 }
