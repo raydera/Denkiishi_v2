@@ -158,14 +158,12 @@ namespace Denkiishi_v2.Controllers
                             )
                             .Select(g => g.Key);
 
-                        // Filtro final do mapa: nativos OU sugeridos pela lógica (independente do modo “Estrito”).
-                        // O switchModalKanji mantém apenas o “expandido” de vocabulários para o conjunto nativo (legado).
+                        // Expandido vs Estrito (mesma ideia do Vocabulário / switchModalVocabulario):
+                        // — Estrito: apenas kanjis com vínculo direto em circle_ue_item para este círculo (KanjiId).
+                        // — Expandido: nativos + kanjis que aparecem em vocabulários do círculo + “sugeridos pela lógica”.
                         if (switchModalKanji)
                         {
-                            query = query.Where(kc =>
-                                nativeKanjiIdsQuery.Contains(kc.KanjiId) ||
-                                suggestedByLogicKanjiIdsQuery.Contains(kc.KanjiId)
-                            );
+                            query = query.Where(kc => nativeKanjiIdsQuery.Contains(kc.KanjiId));
                         }
                         else
                         {
@@ -428,8 +426,84 @@ namespace Denkiishi_v2.Controllers
             var sel = model.LinguasDisponiveis.FirstOrDefault(x => x.Selected) ?? model.LinguasDisponiveis.FirstOrDefault();
             if (sel != null) model.LinguaSelecionadaId = int.Parse(sel.Value);
 
+            var circulosDisponiveis = new List<SelectListItem> { new SelectListItem { Value = "0", Text = "-- Não Associado --" } };
+            int? currentCircleId = null;
+
+            using (var cmd = _context.Database.GetDbConnection().CreateCommand())
+            {
+                if (cmd.Connection.State != System.Data.ConnectionState.Open) await cmd.Connection.OpenAsync();
+
+                cmd.CommandText = @"
+                    SELECT c.id, m.sequential, m.text, c.sequential, c.text
+                    FROM circle c
+                    JOIN mandala m ON c.mandala_id = m.id
+                    ORDER BY m.sequential, c.sequential";
+
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        int cId = reader.GetInt32(0);
+                        int mSeq = reader.GetInt32(1);
+                        string mText = reader.GetString(2);
+                        int cSeq = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+                        string cText = reader.GetString(4);
+
+                        circulosDisponiveis.Add(new SelectListItem
+                        {
+                            Value = cId.ToString(),
+                            Text = $"M{mSeq}.C{cSeq} - {cText} ({mText})"
+                        });
+                    }
+                }
+
+                cmd.CommandText = $"SELECT circle_id FROM circle_ue_item WHERE kanji_id = {id} LIMIT 1";
+                var circleResult = await cmd.ExecuteScalarAsync();
+                if (circleResult != null && circleResult != DBNull.Value) currentCircleId = Convert.ToInt32(circleResult);
+            }
+
+            model.CirculoAtualId = currentCircleId;
+            model.CirculosDisponiveis = circulosDisponiveis;
 
             return model;
+        }
+
+        /// <summary>Associa ou remove o kanji de um círculo do Arquiteto (<c>circle_ue_item</c>), mesmo fluxo que <c>VocabularyController.AssociarCirculo</c>.</summary>
+        [HttpPost]
+        public async Task<IActionResult> AssociarCirculoKanji(int kanjiId, int circleId)
+        {
+            using (var cmd = _context.Database.GetDbConnection().CreateCommand())
+            {
+                if (cmd.Connection.State != System.Data.ConnectionState.Open) await cmd.Connection.OpenAsync();
+
+                if (circleId == 0)
+                {
+                    cmd.CommandText = $"DELETE FROM circle_ue_item WHERE kanji_id = {kanjiId}";
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                else
+                {
+                    cmd.CommandText = $"SELECT id FROM circle_ue_item WHERE kanji_id = {kanjiId} LIMIT 1";
+                    var idResult = await cmd.ExecuteScalarAsync();
+
+                    if (idResult != null && idResult != DBNull.Value)
+                    {
+                        cmd.CommandText = $"UPDATE circle_ue_item SET circle_id = {circleId} WHERE kanji_id = {kanjiId}";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                    else
+                    {
+                        cmd.CommandText = $"SELECT COALESCE(MAX(sequential), 0) + 1 FROM circle_ue_item WHERE circle_id = {circleId}";
+                        var seqResult = await cmd.ExecuteScalarAsync();
+                        int nextSeq = seqResult != DBNull.Value ? Convert.ToInt32(seqResult) : 1;
+
+                        cmd.CommandText = $"INSERT INTO circle_ue_item (circle_id, kanji_id, sequential) VALUES ({circleId}, {kanjiId}, {nextSeq})";
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+
+            return Ok();
         }
 
         // ==========================================================

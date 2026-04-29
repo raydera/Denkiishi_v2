@@ -27,6 +27,10 @@ namespace Denkiishi_v2.Models
         public bool TemHistoria { get; set; }
         public List<SyntaxHighlight> ListaSyntax { get; set; } = new();
         public List<ReadingDto> ListaReadings { get; set; } = new();
+
+        /// <summary>Círculo atual no Arquiteto (<c>circle_ue_item.kanji_id</c>), se houver.</summary>
+        public int? CirculoAtualId { get; set; }
+        public List<SelectListItem> CirculosDisponiveis { get; set; } = new();
     }
 
     // --- NOVO: DTO para transportar os dados da categoria ---

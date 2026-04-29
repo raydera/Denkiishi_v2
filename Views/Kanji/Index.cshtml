@@ -249,6 +249,32 @@
             });
         }
 
+        function salvarCirculoKanji(kanjiId, circleId) {
+            const formData = new FormData();
+            formData.append('kanjiId', kanjiId);
+            formData.append('circleId', circleId);
+
+            fetch('/Kanji/AssociarCirculoKanji', {
+                method: 'POST',
+                body: formData
+            }).then(response => {
+                if (response.ok) {
+                    const select = document.getElementById('selectCirculoKanji');
+                    if (select) {
+                        if (circleId == 0 || circleId === '0') {
+                            select.classList.remove('border-primary', 'text-primary');
+                            select.classList.add('bg-white', 'text-dark', 'border-secondary');
+                        } else {
+                            select.classList.remove('bg-white', 'text-dark', 'border-secondary');
+                            select.classList.add('border-primary', 'text-primary');
+                        }
+                    }
+                } else {
+                    alert("Erro ao salvar o círculo.");
+                }
+            });
+        }
+
         // --- 3. ABRIR MODAL (AJAX) ---
         async function abrirModal(id) {
             // Suporte retrocompatível: abrirModal(id) e abrirModal(id, isSuggested)
@@ -273,7 +299,7 @@
                         banner.className = 'alert alert-success py-2 px-3 mb-3 small';
                         banner.style.borderStyle = 'dotted';
                         banner.style.borderWidth = '2px';
-                        banner.innerText = 'Este caractere foi sugerido com base nos radicais que você já conhece';
+                        banner.innerText = 'Kanji sugerido com base nos radicais dos circulos anteriores';
                         const container = document.getElementById('modalConteudoDinamico');
                         if (container) container.prepend(banner);
                     }
