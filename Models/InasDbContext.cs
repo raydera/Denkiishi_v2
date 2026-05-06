@@ -60,6 +60,7 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
     public virtual DbSet<CircleUeItem> CircleUeItems { get; set; }
     public virtual DbSet<QuizSession> QuizSessions { get; set; }
     public virtual DbSet<EmailLog> EmailLogs { get; set; }
+    public virtual DbSet<EmailTemplate> EmailTemplates { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -69,6 +70,8 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(e => e.TimeZone).HasColumnName("TimeZone");
             entity.Property(e => e.Country).HasColumnName("Country");
+            entity.Property(e => e.NotificationFrequencyId).HasColumnName("notification_frequency_id");
+            entity.Property(e => e.LastNotificationSentAt).HasColumnName("last_notification_sent_at");
         });
 
         modelBuilder.Entity<VocabularyPartOfSpeechMap>(entity =>
@@ -388,6 +391,14 @@ public partial class InasDbContext : IdentityDbContext<ApplicationUser>
                   .WithMany(p => p.UserProgresses)
                   .HasForeignKey(d => d.UserId)
                   .HasConstraintName("fk_user_progress_aspnetusers");
+        });
+
+        modelBuilder.Entity<EmailTemplate>(entity =>
+        {
+            entity.ToTable("email_templates");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.HasIndex(e => e.Code).IsUnique();
         });
 
         modelBuilder.Entity<EmailLog>(entity =>

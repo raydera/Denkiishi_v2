@@ -1,63 +1,234 @@
 ﻿@page
 @model LoginModel
-
 @{
+    Layout = "/Views/Shared/_LayoutAuth.cshtml";
     ViewData["Title"] = "Entrar";
 }
 
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow-lg border-0 rounded-3">
-            <div class="card-header bg-dark text-white text-center py-4 rounded-top">
-                <img src="~/imgs/logos/logo_vertical_bicolor_v1.svg" style="height: 40px; width: auto;" />
-                              <h2 class="h4 mb-0">Bem-vindo de volta!</h2>
-                <small class="text-white-50">Denkiishi Login</small>
-            </div>
-            <div class="card-body p-4">
-                <form id="account" method="post">
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-                    <div class="form-floating mb-3">
-                        <input asp-for="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                        <label asp-for="Input.Email" class="text-muted"><i class="fa fa-envelope me-1"></i> Email</label>
-                        <span asp-validation-for="Input.Email" class="text-danger"></span>
-                    </div>
-
-                    <div class="form-floating mb-3">
-                        <input asp-for="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="Password" />
-                        <label asp-for="Input.Password" class="text-muted"><i class="fa fa-key me-1"></i> Senha</label>
-                        <span asp-validation-for="Input.Password" class="text-danger"></span>
-                    </div>
-
-                    <div class="form-check mb-3">
-                        <label asp-for="Input.RememberMe" class="form-check-label text-secondary">
-                            <input class="form-check-input" asp-for="Input.RememberMe" />
-                            @Html.DisplayNameFor(m => m.Input.RememberMe)
-                        </label>
-                    </div>
-
-                    <div class="d-grid gap-2">
-                        <button id="login-submit" type="submit" class="btn btn-primary btn-lg fw-bold">
-                            <i class="fa fa-sign-in-alt me-2"></i> Entrar
-                        </button>
-                    </div>
-
-                    <hr class="my-4">
-
-                    <div class="text-center small">
-                        <p class="mb-1">
-                            <a id="forgot-password" asp-page="./ForgotPassword" class="text-decoration-none">Esqueceu a senha?</a>
-                        </p>
-                        <p>
-                            Não tem conta? <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl" class="text-decoration-none fw-bold">Registre-se aqui</a>
-                        </p>
-                    </div>
-                </form>
+<div class="login-split">
+    <section class="login-split-brand position-relative d-flex flex-column justify-content-center align-items-center text-center text-white px-4 py-5 py-lg-0 overflow-hidden">
+        <div class="login-split-brand-glow position-absolute rounded-circle"></div>
+        <div class="login-split-brand-glow login-split-brand-glow--2 position-absolute rounded-circle"></div>
+        <div class="position-relative z-1 login-brand-inner">
+            <p class="login-kicker text-uppercase mb-3 small fw-semibold opacity-90">
+                <i class="fa fa-bolt me-1"></i> Denkiishi
+            </p>
+            <h1 class="display-5 fw-bold mb-3 lh-sm">
+                Bem-vindo à<br /><span class="login-gradient-text">Oficina do Arquiteto</span>
+            </h1>
+            <p class="lead fs-6 mb-4 opacity-90 mx-auto login-brand-tagline">
+              
+            </p>
+            <div class="d-flex flex-wrap gap-3 justify-content-center login-brand-badges">
+                <span class="badge rounded-pill px-3 py-2 login-pill"><i class="fa fa-chess-board me-2"></i>Arquiteto</span>
+                <span class="badge rounded-pill px-3 py-2 login-pill"><i class="fa fa-font me-2"></i>Kanjis</span>
+                <span class="badge rounded-pill px-3 py-2 login-pill"><i class="fa fa-book-open me-2"></i>Vocabulário</span>
             </div>
         </div>
-    </div>
+    </section>
+
+    <section class="login-split-form d-flex align-items-center justify-content-center px-3 px-md-4 py-5">
+        <div class="login-panel w-100">
+            <div class="card border-0 shadow-lg login-card">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <img src="~/imgs/logos/logo_vertical_bicolor_v1.svg" alt="Denkiishi Logo" style="max-width: 200px;" class="mb-4 img-fluid" />
+                        <h2 class="h4 fw-bold text-dark mb-1">Entrar na conta</h2>
+                        <p class="text-muted small mb-0">Use seu e-mail e senha para acessar a plataforma.</p>
+                    </div>
+
+                    <form id="account" method="post">
+                        <div asp-validation-summary="ModelOnly" class="text-danger small mb-3 validation-summary-auth"></div>
+
+                        <div class="form-floating mb-3">
+                            <input asp-for="Input.Email" class="form-control login-input" autocomplete="username" aria-required="true" placeholder="nome@exemplo.com" />
+                            <label asp-for="Input.Email"><i class="fa fa-envelope me-1 text-muted"></i> Email</label>
+                            <span asp-validation-for="Input.Email" class="text-danger small"></span>
+                        </div>
+
+                        <div class="form-floating mb-3">
+                            <input asp-for="Input.Password" class="form-control login-input" autocomplete="current-password" aria-required="true" placeholder="Senha" />
+                            <label asp-for="Input.Password"><i class="fa fa-key me-1 text-muted"></i> Senha</label>
+                            <span asp-validation-for="Input.Password" class="text-danger small"></span>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" type="checkbox" asp-for="Input.RememberMe" id="login-remember" />
+                                <label class="form-check-label small text-muted" for="login-remember">Lembrar de mim</label>
+                            </div>
+                        </div>
+
+                        <div class="d-grid mb-4">
+                            <button id="login-submit" type="submit" class="btn btn-lg fw-bold text-white border-0 login-btn-submit shadow-sm py-3 rounded-pill">
+                                <i class="fa fa-right-to-bracket me-2"></i> Entrar
+                            </button>
+                        </div>
+
+                        <div class="text-center small login-links">
+                            <p class="mb-2">
+                                <a id="forgot-password" asp-page="./ForgotPassword" class="text-muted text-decoration-none login-link">
+                                    Esqueceu a senha?
+                                </a>
+                            </p>
+                            <p class="mb-0 text-muted">
+                                Novo por aqui?
+                                <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl" class="fw-semibold text-decoration-none login-link-accent">
+                                    Registrar-se como novo Aprendiz
+                                </a>
+                            </p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <p class="text-center mt-4 mb-0 small text-muted">
+                <a asp-area="" asp-controller="Home" asp-action="Index" class="text-muted text-decoration-none">
+                    <i class="fa fa-arrow-left me-1"></i> Voltar ao início
+                </a>
+            </p>
+        </div>
+    </section>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <style>
+        /* Escopo exclusivo da tela de login — sem alterar o layout global */
+        .auth-root {
+            margin: 0;
+            min-height: 100vh;
+            background: #f8fafc;
+        }
+
+        .login-split {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        @@media (min-width: 992px) {
+            .login-split {
+                flex-direction: row;
+            }
+        }
+
+        .login-split-brand {
+            flex: 1 1 42%;
+            min-height: 38vh;
+            background:
+                linear-gradient(135deg, rgba(79, 172, 254, 0.28) 0%, rgba(0, 242, 254, 0.12) 55%, transparent 100%),
+                linear-gradient(155deg, #1e1b4b 0%, #312e81 42%, #1e3a5f 100%);
+        }
+
+        @@media (min-width: 992px) {
+            .login-split-brand {
+                min-height: 100vh;
+            }
+        }
+
+        .login-split-brand-glow {
+            width: min(320px, 80vw);
+            height: min(320px, 80vw);
+            background: radial-gradient(circle, rgba(79, 172, 254, 0.45) 0%, transparent 70%);
+            top: -80px;
+            right: -60px;
+            filter: blur(2px);
+        }
+
+        .login-split-brand-glow--2 {
+            width: 240px;
+            height: 240px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.35) 0%, transparent 70%);
+            bottom: -40px;
+            left: -40px;
+            top: auto;
+            right: auto;
+        }
+
+        .login-gradient-text {
+            background: linear-gradient(135deg, #7dd3fc 0%, #a5f3fc 45%, #e9d5ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-kicker {
+            letter-spacing: 0.2em;
+        }
+
+        .login-brand-tagline {
+            max-width: 28rem;
+        }
+
+        .login-pill {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            font-weight: 500;
+        }
+
+        .login-split-form {
+            flex: 1 1 58%;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+
+        .login-panel {
+            max-width: 440px;
+        }
+
+        .login-card {
+            border-radius: 20px;
+            box-shadow: 0 1rem 3rem rgba(30, 27, 75, 0.12) !important;
+        }
+
+        .login-input {
+            border-radius: 12px;
+            min-height: 52px;
+        }
+
+        .login-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.18);
+        }
+
+        .form-floating > label {
+            padding-left: 1rem;
+        }
+
+        .login-btn-submit {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .login-btn-submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0.75rem 2rem rgba(79, 172, 254, 0.45) !important;
+            color: #fff;
+        }
+
+        .login-btn-submit:active {
+            transform: translateY(0);
+        }
+
+        .login-link {
+            transition: color 0.2s ease;
+        }
+
+        .login-link:hover {
+            color: #6366f1 !important;
+        }
+
+        .login-link-accent {
+            color: #4f46e5;
+            transition: color 0.2s ease;
+        }
+
+        .login-link-accent:hover {
+            color: #6366f1;
+        }
+
+        /* Oculta o sumário quando não há erros de modelo (classe gerada pelo unobtrusive validation) */
+        .validation-summary-auth.validation-summary-valid {
+            display: none;
+        }
+    </style>
 }

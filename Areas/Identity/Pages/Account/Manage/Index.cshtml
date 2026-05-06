@@ -29,6 +29,19 @@
                 <span asp-validation-for="Input.PhoneNumber" class="text-danger"></span>
             </div>
 
+            @* Frequência SRS: valor numérico espelha notification_frequency_id / Denkiishi_v2.Enums.NotificationFrequency *@
+            <div class="mb-3">
+                <label asp-for="Input.NotificationFrequencyId" class="form-label"></label>
+                <select asp-for="Input.NotificationFrequencyId" class="form-select" aria-describedby="freq-help">
+                    <option value="0">Nunca</option>
+                    <option value="1">Diariamente</option>
+                    <option value="2">Duas vezes por semana</option>
+                    <option value="3">Semanalmente</option>
+                </select>
+                <div id="freq-help" class="form-text">Controla com que frequência enviamos lembretes quando você tiver revisões SRS pendentes.</div>
+                <span asp-validation-for="Input.NotificationFrequencyId" class="text-danger"></span>
+            </div>
+
             <button id="update-profile-button" type="submit" class="w-100 btn btn-lg btn-primary">Salvar</button>
         </form>
     </div>

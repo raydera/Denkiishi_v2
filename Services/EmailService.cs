@@ -31,7 +31,7 @@ public class EmailService : IEmailService
         _logger = logger;
     }
 
-    public async Task SendAsync(string toEmail, string subject, string body, string? userId = null, CancellationToken cancellationToken = default)
+    public async Task SendAsync(string toEmail, string subject, string body, string? userId = null, bool isHtml = false, CancellationToken cancellationToken = default)
     {
         var log = new EmailLog
         {
@@ -57,7 +57,7 @@ public class EmailService : IEmailService
             message.From.Add(new MailboxAddress(_settings.SenderName, _settings.SenderEmail));
             message.To.Add(MailboxAddress.Parse(toEmail));
             message.Subject = subject;
-            message.Body = new TextPart("plain") { Text = body };
+            message.Body = new TextPart(isHtml ? "html" : "plain") { Text = body };
 
             using var client = new SmtpClient();
             await client.ConnectAsync(_settings.Server, _settings.Port, SecureSocketOptions.StartTls, cancellationToken);
